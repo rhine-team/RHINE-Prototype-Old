@@ -29,6 +29,10 @@ var rootCmd = &cobra.Command{
 	Short: "Aggregator server",
 	Long:  "Server running an aggregator needed for RHINE",
 	Run: func(cmd *cobra.Command, args []string) {
+		if false {
+			rhine.DisableConsoleOutput()
+		}
+
 		// Parse config
 		cof, errparse := rhine.LoadAggConfig(configPath)
 		if errparse != nil {

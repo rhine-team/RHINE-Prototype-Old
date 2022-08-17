@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"math/big"
 	mrand "math/rand"
@@ -34,6 +35,11 @@ import (
 )
 
 // Some of these functions are from the old offlineAuth implementation
+
+func DisableConsoleOutput() {
+	log.SetFlags(0)
+	log.SetOutput(ioutil.Discard)
+}
 
 func PEMBytesToHexString(pemBytes []byte) string {
 	hexString := hex.EncodeToString(pemBytes)

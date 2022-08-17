@@ -6,7 +6,8 @@ import (
 
 	"errors"
 	"log"
-	"reflect"
+
+	//"reflect"
 	"time"
 
 	"github.com/google/certificate-transparency-go/x509"
@@ -18,7 +19,7 @@ type Nds struct {
 }
 
 type NdsToSign struct {
-	Log     []string
+	//Log     []string
 	Agg     []string
 	Zone    ZoneOwner
 	Al      AuthorityLevel
@@ -52,19 +53,22 @@ func (n *Nds) VerifyNDS(pubKey any) error {
 	}
 
 	// Check that rhinesig data matches NDS data
-	if bytes.Compare(encNDS, n.Signednds.Data) != 0 {
-		/*
-			ands, _ := DeserializeStructure[NdsToSign](encNDS)
-			bnds, _ := DeserializeStructure[NdsToSign](n.Signednds.Data)
-			log.Printf("Our freshly encoded nds %+v \n Decoded nds from message %+v ", ands, bnds)
-			//log.Printf("\n Bytes we computed %+v \n Bytes from the data %+v", message.Bytes(), n.Signednds.Data)
-			//log.Printf("Result of compare: ", bytes.Compare(encNDS, n.Signednds.Data))
-		*/
-		return errors.New("Signed data not matching with NDS content")
-	}
+	/*
+		if bytes.Compare(encNDS, n.Signednds.Data) != 0 {
+
+				ands, _ := DeserializeStructure[NdsToSign](encNDS)
+				bnds, _ := DeserializeStructure[NdsToSign](n.Signednds.Data)
+				log.Printf("Our freshly encoded nds %+v \n Decoded nds from message %+v ", ands, bnds)
+				//log.Printf("\n Bytes we computed %+v \n Bytes from the data %+v", message.Bytes(), n.Signednds.Data)
+				//log.Printf("Result of compare: ", bytes.Compare(encNDS, n.Signednds.Data))
+
+			return errors.New("Signed data not matching with NDS content")
+		}
+	*/
+	newRhineSig := &RhineSig{Data: encNDS}
 
 	// Verify Signature
-	if !n.Signednds.Verify(pubKey) {
+	if !newRhineSig.Verify(pubKey) {
 		log.Printf("Signature on NDS not matching! %+v: ", n.Nds)
 		return errors.New("Signature on NDS not by correct key-pair")
 	}
@@ -75,7 +79,8 @@ func (n *Nds) VerifyNDS(pubKey any) error {
 // Check if NDS and CSR match
 func (n *Nds) CheckAgainstCSR(csr *Csr) bool {
 	// Check logs
-	matching := reflect.DeepEqual(n.Nds.Log, csr.logs)
+	//matching := reflect.DeepEqual(n.Nds.Log, csr.logs)
+	matching := true
 	// Check zone
 	matching = matching && n.Nds.Zone.Name == csr.zone.Name
 	// Check Al
@@ -135,9 +140,11 @@ func (n *Nds) MatchWithConfirm(conf []Confirm) bool {
 func (n *Nds) NdsToSignBytes() ([]byte, error) {
 	hasher := sha256.New()
 
-	for _, l := range n.Nds.Log {
-		hasher.Write([]byte(l))
-	}
+	/*
+		for _, l := range n.Nds.Log {
+			hasher.Write([]byte(l))
+		}
+	*/
 
 	for _, a := range n.Nds.Agg {
 		hasher.Write([]byte(a))

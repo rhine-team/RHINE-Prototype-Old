@@ -212,13 +212,13 @@ func (myca *Ca) CreatePoisonedCert(psr *Psr) *x509.Certificate {
 func (myca *Ca) CreateNDS(psr *Psr, certC *x509.Certificate) (*Nds, error) {
 
 	// Extract list of designated loggers
-	logl := psr.csr.logs
+	//logl := psr.csr.logs
 
 	// TODO Randomly select aggregs instead of all
 	aggl := myca.AggList
 
 	ndssign := NdsToSign{
-		Log:     logl,
+		//Log:     logl,
 		Agg:     aggl,
 		Zone:    psr.csr.zone,
 		Al:      psr.csr.al,

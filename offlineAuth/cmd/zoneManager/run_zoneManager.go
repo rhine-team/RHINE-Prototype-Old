@@ -32,6 +32,9 @@ var ZoneIsIndependent bool
 var ZoneIsDelegationOnly bool
 var PrivateKeyPath string
 
+// Set timeout
+var timeout = time.Second * 30
+
 var rootCmd = &cobra.Command{
 	Use:   "run_zoneManager",
 	Short: "ZoneManager for RHINE",
@@ -98,7 +101,7 @@ var RequestDelegCmd = &cobra.Command{
 		c := ps.NewParentServiceClient(conn)
 
 		// Send delegation request to the server
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		r, err := c.InitDelegation(ctx, &ps.InitDelegationRequest{Rid: csr.ReturnRid(), Csr: csr.ReturnRawBytes()})
 		if err != nil {
@@ -141,7 +144,7 @@ var RequestDelegCmd = &cobra.Command{
 		cca := ca.NewCAServiceClient(connCA)
 
 		// Send delegation request to the  CA server
-		ctxca, cancelca := context.WithTimeout(context.Background(), time.Second)
+		ctxca, cancelca := context.WithTimeout(context.Background(), timeout)
 		defer cancelca()
 
 		rCA, errca := cca.SubmitNewDelegCA(ctxca, &ca.SubmitNewDelegCARequest{Rcertp: r.Rcertp, Acsr: caacsr, Rid: csr.ReturnRid()})

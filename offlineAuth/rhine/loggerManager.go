@@ -18,6 +18,9 @@ import (
 	"github.com/rhine-team/RHINE-Prototype/offlineAuth/components/aggregator"
 )
 
+// Set logger timeout
+var timeoutLogger = time.Second * 30
+
 type LogManager struct {
 	Log     Log
 	privkey any
@@ -313,7 +316,7 @@ func (lm *LogManager) FinishInitialDelegLog(dsum DSum, nds *Nds, pzone string, p
 
 	// TODO At a different time
 	// Retrieve DSA from aggregator!
-	lm.GetDSAfromAggregators()
+	//lm.GetDSAfromAggregators()
 
 	return *aggc, sctbytes, nil
 }
@@ -326,7 +329,7 @@ func (lm *LogManager) GetDSAfromAggregators() {
 	defer conn.Close()
 	c := aggregator.NewAggServiceClient(conn)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutLogger)
 	defer cancel()
 	r, err := c.DSRetrieval(ctx, &aggregator.RetrieveDSALogRequest{RequestedZones: []string{}})
 	if err != nil {

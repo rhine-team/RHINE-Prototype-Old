@@ -20,6 +20,10 @@ var rootCmd = &cobra.Command{
 	Short: "Front-end logger",
 	Long:  "Front-end logger for RHINE, connects to a trillian-based CT backend",
 	Run: func(cmd *cobra.Command, args []string) {
+		if false {
+			rhine.DisableConsoleOutput()
+		}
+
 		// Parse config
 		cof, errparse := rhine.LoadLogConfig(configPath)
 		if errparse != nil {

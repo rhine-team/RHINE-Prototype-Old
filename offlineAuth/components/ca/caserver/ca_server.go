@@ -6,6 +6,8 @@ import (
 	"log"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/google/certificate-transparency-go/x509"
 	_ "github.com/rhine-team/RHINE-Prototype/offlineAuth/cbor"
 	pf "github.com/rhine-team/RHINE-Prototype/offlineAuth/components/ca"
@@ -15,6 +17,16 @@ import (
 	logp "github.com/rhine-team/RHINE-Prototype/offlineAuth/components/log"
 )
 
+// Set timeout
+var timeout = time.Second * 30
+var count = 0
+
+type SCTandLConf struct {
+	sct        []byte
+	lconf      rhine.Confirm
+	lconfbytes []byte
+}
+
 type CAServer struct {
 	pf.UnimplementedCAServiceServer
 	Ca *rhine.Ca
@@ -22,9 +34,6 @@ type CAServer struct {
 
 func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCARequest) (*pf.SubmitNewDelegCAResponse, error) {
 	res := &pf.SubmitNewDelegCAResponse{}
-
-	// Set timeout
-	timeout := time.Second * 10
 
 	log.Printf("Received NewDeleg from Child with RID %s", rhine.EncodeBase64(in.Rid))
 
@@ -58,45 +67,59 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 	// Make dspRequest
 	dspRequest := &logp.DSProofRetRequest{Childzone: psr.ChildZone, Parentzone: psr.ParentZone}
 
-	clientsLogger := []logp.LogServiceClient{}
+	clientsLogger := make([]logp.LogServiceClient, len(psr.GetLogs()))
 	// Make connections for all designated loggers
+
+	// Use error group to fail goroutines if network issue or dsp does not validate
+	errGroup := new(errgroup.Group)
+
 	for i, logger := range psr.GetLogs() {
-		//TODO: maybe check if corresponds to configed log list
+		i := i
+		logger := logger
+
+		// Create connections and clients, remember to reuse later
 		conn := rhine.GetGRPCConn(logger)
 		defer conn.Close()
-		clientsLogger = append(clientsLogger, logp.NewLogServiceClient(conn))
+		clientsLogger[i] = logp.NewLogServiceClient(conn)
 
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
+		errGroup.Go(func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
 
-		r, err := clientsLogger[i].DSProofRet(ctx, dspRequest)
-		if err != nil {
-			log.Printf("No good response: %v", err)
-			return res, err
-		}
+			r, err := clientsLogger[i].DSProofRet(ctx, dspRequest)
+			if err != nil {
+				log.Printf("No good response: %v", err)
+				return err
+			}
 
-		// Parse the response
-		dsp, errdeser := rhine.DeserializeStructure[rhine.Dsp](r.DSPBytes)
-		if errdeser != nil {
-			log.Printf("Error while deserializing dsp: %v", errdeser)
-			return res, err
-		}
+			// Parse the response
+			dsp, errdeser := rhine.DeserializeStructure[rhine.Dsp](r.DSPBytes)
+			if errdeser != nil {
+				log.Printf("Error while deserializing dsp: %v", errdeser)
+				return errdeser
+			}
 
-		//log.Printf("Our DSP Response from the log %+v", r)
-		//log.Printf("Our DSP we got from the log %+v", dsp)
+			//log.Printf("Our DSP Response from the log %+v", r)
+			//log.Printf("Our DSP we got from the log %+v", dsp)
 
-		// Check validity of dsp
-		// Check if proof is correct
-		// Check if pcert matches dsp
-		// Check ALC and ALP compatibility
-		if !(&dsp).Verify(s.Ca.LogMap[logger].Pubkey, psr.ChildZone, rcertp, psr.GetAlFromCSR()) {
-			log.Println("Verification of dsp failed")
-			return res, errors.New("Verification of DSP and check against it failed!")
-		}
+			// Check validity of dsp
+			// Check if proof is correct
+			// Check if pcert matches dsp
+			// Check ALC and ALP compatibility
+			if !(&dsp).Verify(s.Ca.LogMap[logger].Pubkey, psr.ChildZone, rcertp, psr.GetAlFromCSR()) {
+				log.Println("Verification of dsp failed")
+				//noFailureChannel <- false
+				return errors.New("Verification of DSP and check against it failed!")
+				//return res, errors.New("Verification of DSP and check against it failed!")
+			}
 
-		log.Println("DSP verified with success.")
+			log.Println("DSP verified with success. For logger: ", logger)
+			return nil
+		})
 
 	}
+
+	log.Println("All DSProofs fine")
 
 	// Create PreRC and NDS
 	preRC := s.Ca.CreatePoisonedCert(psr)
@@ -119,33 +142,58 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		Sig:  in.Acsr.Sig,
 	}
 
-	var LogWitnessList []rhine.Lwit
-	// Make connections for all designated loggers
+	// Wait for DSProof goroutines
+	if err := errGroup.Wait(); err != nil {
+		return res, err
+	}
+	log.Println("All DSProof routines return valid")
+
+	// Use error group to fail goroutines if network issue or dsp does not validate
+	errGroup = new(errgroup.Group)
+
+	LogWitnessList := make([]rhine.Lwit, len(psr.GetLogs()))
+	logWitnessReturns := make(chan rhine.Lwit, len(psr.GetLogs()))
 	for i, _ := range psr.GetLogs() {
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
+		i := i
+		errGroup.Go(func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
 
-		rDemandLog, errDL := clientsLogger[i].DemandLogging(ctx, &logp.DemandLoggingRequest{Acsr: acsrLog, ParentRcert: in.Rcertp, ChildPreRC: preRC.Raw, Nds: ndsBytes, Rid: in.Rid})
-		if errDL != nil {
-			log.Printf("No good response from log for DemandLogging: %v", errDL)
-			return res, errDL
-		}
+			rDemandLog, errDL := clientsLogger[i].DemandLogging(ctx, &logp.DemandLoggingRequest{Acsr: acsrLog, ParentRcert: in.Rcertp, ChildPreRC: preRC.Raw, Nds: ndsBytes, Rid: in.Rid})
+			if errDL != nil {
+				log.Printf("No good response from log for DemandLogging: %v", errDL)
+				return errDL
+			}
 
-		//log.Printf("Received res for Demand Logging %+v ", rDemandLog)
-		log.Printf("Received response for DemandLogging ")
+			//log.Printf("Received res for Demand Logging %+v ", rDemandLog)
+			log.Printf("Received response for DemandLogging ")
 
-		// Collect Lwits
-		var newLwit rhine.Lwit
-		newLwit = rhine.Lwit{
-			Rsig: &rhine.RhineSig{
-				Data:      rDemandLog.LogWitness.Data,
-				Signature: rDemandLog.LogWitness.Sig,
-			},
-			NdsBytes: rDemandLog.LogWitness.NdsHash,
-			Log:      &rhine.Log{Name: rDemandLog.LogWitness.Log},
-			LogList:  rDemandLog.LogWitness.DesignatedLogs,
-		}
-		LogWitnessList = append(LogWitnessList, newLwit)
+			// Collect Lwits
+			var newLwit rhine.Lwit
+			newLwit = rhine.Lwit{
+				Rsig: &rhine.RhineSig{
+					Data:      rDemandLog.LogWitness.Data,
+					Signature: rDemandLog.LogWitness.Sig,
+				},
+				NdsBytes: rDemandLog.LogWitness.NdsHash,
+				Log:      &rhine.Log{Name: rDemandLog.LogWitness.Log},
+				LogList:  rDemandLog.LogWitness.DesignatedLogs,
+			}
+			//LogWitnessList = append(LogWitnessList, newLwit)
+			logWitnessReturns <- newLwit
+			return nil
+		})
+	}
+
+	// Wait for LogWitness responses
+	if err := errGroup.Wait(); err != nil {
+		return res, err
+	}
+
+	// Collect the Lwits from the routines
+	for i := range psr.GetLogs() {
+		l := <-logWitnessReturns
+		LogWitnessList[i] = l
 	}
 
 	// Step 11: Verify Lwits
@@ -174,42 +222,67 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 	}
 
 	aggMsg := &agg.SubmitNDSRequest{
-		Nds:   ndsBytes,
-		Lwits: lwitAggList,
-		Rid:   in.Rid,
+		Nds:           ndsBytes,
+		Lwits:         lwitAggList,
+		Rid:           in.Rid,
+		Acsrpayload:   acsr.Data,
+		Acsrsignature: acsr.Signature,
+		Rcertp:        rcertp.Raw,
 	}
 
 	// Send all allgregs the log witnesses
-	clientsAggreg := []agg.AggServiceClient{}
-	aggConfirmList := []rhine.Confirm{}
-	aggConfirmListBytes := [][]byte{}
-	// Make connections for all designated loggers
-	for _, aggregat := range nds.Nds.Agg {
+	// Use error group to fail goroutines if network issue or dsp does not validate
+	errGroup = new(errgroup.Group)
+
+	clientsAggreg := make([]agg.AggServiceClient, len(nds.Nds.Agg))
+	aggConfirmList := make([]rhine.Confirm, len(nds.Nds.Agg))
+	aggConfirmListBytes := make([][]byte, len(nds.Nds.Agg))
+	aggConfirmReturns := make(chan rhine.Confirm, len(nds.Nds.Agg))
+	aggConfirmBytesReturns := make(chan []byte, len(nds.Nds.Agg))
+	// Make connections for all designated aggregators
+	for i, aggregat := range nds.Nds.Agg {
+		i := i
+		aggregat := aggregat
 		connAgg := rhine.GetGRPCConn(aggregat)
 		defer connAgg.Close()
 		cAgg := agg.NewAggServiceClient(connAgg)
-		clientsAggreg = append(clientsAggreg, cAgg)
+		clientsAggreg[i] = cAgg
+		errGroup.Go(func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
+			rAgg, err := cAgg.SubmitNDS(ctx, aggMsg)
+			if err != nil {
+				return err
+			}
 
-		rAgg, err := cAgg.SubmitNDS(ctx, aggMsg)
-		if err != nil {
-			return res, err
-		}
+			log.Println("Response received by aggregator for SubmitNDS")
 
-		log.Println("Response received by aggregator for SubmitNDS")
+			// Collect received confirms
 
-		// Collect received confirms
+			aggConf, errTranspConf := rhine.TransportBytesToConfirm(rAgg.Acfmg)
+			if errTranspConf != nil {
+				log.Println("Transport bytes to confirm failed: ", errTranspConf)
+				return errTranspConf
+			}
 
-		aggConf, errTranspConf := rhine.TransportBytesToConfirm(rAgg.Acfmg)
-		if errTranspConf != nil {
-			log.Println("Transport bytes to confirm failed: ", errTranspConf)
-			return res, errTranspConf
-		}
+			aggConfirmReturns <- *aggConf
+			aggConfirmBytesReturns <- rAgg.Acfmg
+			//aggConfirmList = append(aggConfirmList, *aggConf)
+			//aggConfirmListBytes = append(aggConfirmListBytes, rAgg.Acfmg)
+			return nil
+		})
+	}
 
-		aggConfirmList = append(aggConfirmList, *aggConf)
-		aggConfirmListBytes = append(aggConfirmListBytes, rAgg.Acfmg)
+	// Wait for aggregator responses
+	if err := errGroup.Wait(); err != nil {
+		return res, err
+	}
+
+	// Collect the Lwits from the routines
+	for i := range nds.Nds.Agg {
+		aggConfirmList[i] = <-aggConfirmReturns
+		aggConfirmListBytes[i] = <-aggConfirmBytesReturns
 	}
 
 	// Check Signatures on Agg_confirms and
@@ -230,29 +303,50 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 	// Connection already established :
 
 	// Collect LogConfirms
-	logConfirmList := []rhine.Confirm{}
-	logConfirmListBytes := [][]byte{}
-	SCTS := [][]byte{}
+	logConfirmList := make([]rhine.Confirm, len(psr.GetLogs()))
+	logConfirmListBytes := make([][]byte, len(psr.GetLogs()))
+	SCTS := make([][]byte, len(psr.GetLogs()))
 	pubKeyInOrder := []any{}
-	for i, logger := range psr.GetLogs() {
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
+	sctAndLConf := make(chan SCTandLConf, len(psr.GetLogs()))
+	for i, _ := range psr.GetLogs() {
+		i := i
+		errGroup.Go(func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
 
-		rSubAcfm, errSubAcfm := clientsLogger[i].SubmitACFM(ctx, &logp.SubmitACFMRequest{Acfms: aggConfirmListBytes, Rid: in.Rid})
-		if errSubAcfm != nil {
-			return res, errSubAcfm
-		}
+			rSubAcfm, errSubAcfm := clientsLogger[i].SubmitACFM(ctx, &logp.SubmitACFMRequest{Acfms: aggConfirmListBytes, Rid: in.Rid})
+			if errSubAcfm != nil {
+				return errSubAcfm
+			}
 
-		logConf, errTranspConfL := rhine.TransportBytesToConfirm(rSubAcfm.Lcfm)
-		if errTranspConfL != nil {
-			return res, errTranspConfL
-		}
+			logConf, errTranspConfL := rhine.TransportBytesToConfirm(rSubAcfm.Lcfm)
+			if errTranspConfL != nil {
+				return errTranspConfL
+			}
 
+			sctnlconf := SCTandLConf{
+				sct:        rSubAcfm.SCT,
+				lconf:      *logConf,
+				lconfbytes: rSubAcfm.Lcfm,
+			}
+			sctAndLConf <- sctnlconf
+			return nil
+		})
+	}
+
+	// Wait for loggers responses
+	if err := errGroup.Wait(); err != nil {
+		return res, err
+	}
+
+	// Collect the SCTS and Confirms from the routines
+	for i := range psr.GetLogs() {
+		snl := <-sctAndLConf
 		// Collect Confirms
-		logConfirmList = append(logConfirmList, *logConf)
-		logConfirmListBytes = append(logConfirmListBytes, rSubAcfm.Lcfm)
-		SCTS = append(SCTS, rSubAcfm.SCT)
-		pubKeyInOrder = append(pubKeyInOrder, s.Ca.LogMap[logger].Pubkey)
+		logConfirmList[i] = snl.lconf
+		logConfirmListBytes[i] = snl.lconfbytes
+		SCTS[i] = snl.sct
+		pubKeyInOrder = append(pubKeyInOrder, s.Ca.LogMap[snl.lconf.EntityName].Pubkey)
 	}
 
 	// Check if LogConfirms are correctly signed
@@ -284,6 +378,8 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		Rid:    in.Rid,
 	}
 
+	count = count + 1
+	log.Println("NUMBER ISSUED ", count)
 	return res, nil
 
 }

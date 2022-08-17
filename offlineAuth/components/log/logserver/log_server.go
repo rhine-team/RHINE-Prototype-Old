@@ -116,6 +116,9 @@ func (s *LogServer) SubmitACFM(ctx context.Context, in *pf.SubmitACFMRequest) (*
 	precert := rq.PreRCc
 	parcert := rq.ParentCert
 
+	// Delete values from cache
+	delete(s.LogManager.RequestCache, string(in.Rid))
+
 	// Check match of confirms with nds
 	if !nds.MatchWithConfirm(aggConfirmList) {
 		return res, errors.New("One of the AggConfirms did not match the NDS")

@@ -21,6 +21,10 @@ var rootCmd = &cobra.Command{
 	Short: "CA Server",
 	Long:  "Runs the Certificate Authority for RHINE",
 	Run: func(cmd *cobra.Command, args []string) {
+		if false {
+			rhine.DisableConsoleOutput()
+		}
+
 		// Parse config
 		cof, errparse := rhine.LoadCAConfig(configPath)
 		if errparse != nil {
