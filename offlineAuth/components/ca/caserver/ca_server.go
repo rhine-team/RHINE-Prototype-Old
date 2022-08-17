@@ -3,7 +3,10 @@ package caserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"os"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -12,6 +15,7 @@ import (
 	_ "github.com/rhine-team/RHINE-Prototype/offlineAuth/cbor"
 	pf "github.com/rhine-team/RHINE-Prototype/offlineAuth/components/ca"
 	"github.com/rhine-team/RHINE-Prototype/offlineAuth/rhine"
+	"github.com/shirou/gopsutil/cpu"
 
 	agg "github.com/rhine-team/RHINE-Prototype/offlineAuth/components/aggregator"
 	logp "github.com/rhine-team/RHINE-Prototype/offlineAuth/components/log"
@@ -19,12 +23,21 @@ import (
 
 // Set timeout
 var timeout = time.Second * 30
-var count = 0
+var count uint64
+var startTime time.Time
+var intervalTime time.Time
+var f *os.File
+var cpuPercent []float64
 
 type SCTandLConf struct {
 	sct        []byte
 	lconf      rhine.Confirm
 	lconfbytes []byte
+}
+
+type ConfAndBytes struct {
+	bytes []byte
+	conf  rhine.Confirm
 }
 
 type CAServer struct {
@@ -34,6 +47,13 @@ type CAServer struct {
 
 func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCARequest) (*pf.SubmitNewDelegCAResponse, error) {
 	res := &pf.SubmitNewDelegCAResponse{}
+
+	if startTime.IsZero() {
+		startTime = time.Now()
+		intervalTime = time.Now()
+		f, _ = os.Create("CAStats" + fmt.Sprintf("%d%d", time.Now().Hour(), time.Now().Minute()) + ".csv")
+		cpuPercent, _ = cpu.Percent(0, true)
+	}
 
 	log.Printf("Received NewDeleg from Child with RID %s", rhine.EncodeBase64(in.Rid))
 
@@ -93,7 +113,9 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 			}
 
 			// Parse the response
-			dsp, errdeser := rhine.DeserializeStructure[rhine.Dsp](r.DSPBytes)
+			//dsp, errdeser := rhine.DeserializeStructure[rhine.Dsp](r.DSPBytes)
+			dsp := &rhine.Dsp{}
+			errdeser := rhine.DeserializeCBOR(r.DSPBytes, dsp)
 			if errdeser != nil {
 				log.Printf("Error while deserializing dsp: %v", errdeser)
 				return errdeser
@@ -106,7 +128,7 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 			// Check if proof is correct
 			// Check if pcert matches dsp
 			// Check ALC and ALP compatibility
-			if !(&dsp).Verify(s.Ca.LogMap[logger].Pubkey, psr.ChildZone, rcertp, psr.GetAlFromCSR()) {
+			if !(dsp).Verify(s.Ca.LogMap[logger].Pubkey, psr.ChildZone, rcertp, psr.GetAlFromCSR()) {
 				log.Println("Verification of dsp failed")
 				//noFailureChannel <- false
 				return errors.New("Verification of DSP and check against it failed!")
@@ -237,8 +259,7 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 	clientsAggreg := make([]agg.AggServiceClient, len(nds.Nds.Agg))
 	aggConfirmList := make([]rhine.Confirm, len(nds.Nds.Agg))
 	aggConfirmListBytes := make([][]byte, len(nds.Nds.Agg))
-	aggConfirmReturns := make(chan rhine.Confirm, len(nds.Nds.Agg))
-	aggConfirmBytesReturns := make(chan []byte, len(nds.Nds.Agg))
+	aggConfirmReturns := make(chan ConfAndBytes, len(nds.Nds.Agg))
 	// Make connections for all designated aggregators
 	for i, aggregat := range nds.Nds.Agg {
 		i := i
@@ -266,10 +287,8 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 				return errTranspConf
 			}
 
-			aggConfirmReturns <- *aggConf
-			aggConfirmBytesReturns <- rAgg.Acfmg
-			//aggConfirmList = append(aggConfirmList, *aggConf)
-			//aggConfirmListBytes = append(aggConfirmListBytes, rAgg.Acfmg)
+			aggConfirmReturns <- ConfAndBytes{conf: *aggConf, bytes: rAgg.Acfmg}
+
 			return nil
 		})
 	}
@@ -281,8 +300,9 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 
 	// Collect the Lwits from the routines
 	for i := range nds.Nds.Agg {
-		aggConfirmList[i] = <-aggConfirmReturns
-		aggConfirmListBytes[i] = <-aggConfirmBytesReturns
+		aCR := <-aggConfirmReturns
+		aggConfirmList[i] = aCR.conf
+		aggConfirmListBytes[i] = aCR.bytes
 	}
 
 	// Check Signatures on Agg_confirms and
@@ -378,7 +398,17 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		Rid:    in.Rid,
 	}
 
-	count = count + 1
+	atomic.AddUint64(&count, 1)
+	if time.Since(intervalTime) > time.Second*5 {
+		elapsed := time.Since(startTime)
+		log.Println("INFO", count, elapsed)
+		intervalTime = time.Now()
+
+		// Calc CPU util
+		cpuPercent, _ = cpu.Percent(0, true)
+		f.WriteString(fmt.Sprintf("%f,%d,%f,%f\n", elapsed.Seconds(), count, float64(count)/elapsed.Seconds(), cpuPercent))
+		f.Sync()
+	}
 	log.Println("NUMBER ISSUED ", count)
 	return res, nil
 

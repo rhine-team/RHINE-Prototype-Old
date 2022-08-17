@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 
+	"github.com/google/certificate-transparency-go/x509"
 	_ "github.com/rhine-team/RHINE-Prototype/offlineAuth/cbor"
 	pf "github.com/rhine-team/RHINE-Prototype/offlineAuth/components/aggregator"
 	"github.com/rhine-team/RHINE-Prototype/offlineAuth/rhine"
@@ -51,14 +52,34 @@ func (s *AggServer) SubmitNDS(ctx context.Context, in *pf.SubmitNDSRequest) (*pf
 		}
 		LogWitnessList = append(LogWitnessList, newLwit)
 	}
-	//log.Printf("List of all log witnesses: %+v \n", LogWitnessList)
+
+	// Parse Pcert
+	pcert, errpcertparse := x509.ParseCertificate(in.Rcertp)
+	if errpcertparse != nil {
+		return res, errpcertparse
+	}
+
+	// Parse in RSig
+	psr := rhine.CreatePsr(pcert, &rhine.RhineSig{Data: in.Acsrpayload, Signature: in.Acsrsignature})
+
+	// Check that ACSR was signed by Parent and
+	// Check that the csr is signed by the Child
+	// And check that child and parent are what they say
+	if errpsr := psr.Verify(s.AggManager.CertPool); errpsr != nil {
+		return res, errpsr
+	}
 
 	// Parse NDS
 	nds, errNDS := rhine.BytesToNds(in.Nds)
 	if errNDS != nil {
 		return res, errNDS
 	}
-	//log.Println("NDS deserialized:", nds)
+
+	// Check NDS against CSR
+	if !nds.CheckAgainstCSR(psr.GetCsr()) {
+		log.Printf("Failed check of NDS against CSR: %+v ", nds)
+		return res, errors.New("Failed check of NDS against CSR at aggregator")
+	}
 
 	// Check Correct Signature on NDS
 	if err := nds.VerifyNDS(s.AggManager.Ca.Pubkey); err != nil {

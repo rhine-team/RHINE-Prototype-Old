@@ -27,7 +27,8 @@ func (s *LogServer) DSProofRet(ctx context.Context, in *pf.DSProofRetRequest) (*
 	}
 
 	// Encode and send
-	dspseri, err := rhine.SerializeStructure[rhine.Dsp](dsp)
+	//dspseri, err := rhine.SerializeStructure[rhine.Dsp](dsp)
+	dspseri, err := rhine.SerializeCBOR(dsp)
 	//log.Printf("DSP, serialized: %+v", dsp)
 
 	if err != nil {
@@ -108,7 +109,7 @@ func (s *LogServer) SubmitACFM(ctx context.Context, in *pf.SubmitACFMRequest) (*
 	}
 
 	// Retrieve nds, etc... from the RequestCache
-	rq, ok := s.LogManager.RequestCache[string(in.Rid)]
+	rq, ok := s.LogManager.RequestCache.Get(string(in.Rid))
 	if !ok {
 		return res, errors.New("Wrong RID on this Request")
 	}
@@ -117,7 +118,8 @@ func (s *LogServer) SubmitACFM(ctx context.Context, in *pf.SubmitACFMRequest) (*
 	parcert := rq.ParentCert
 
 	// Delete values from cache
-	delete(s.LogManager.RequestCache, string(in.Rid))
+	//delete(s.LogManager.RequestCache, string(in.Rid))
+	s.LogManager.RequestCache.Remove(string(in.Rid))
 
 	// Check match of confirms with nds
 	if !nds.MatchWithConfirm(aggConfirmList) {
@@ -135,6 +137,8 @@ func (s *LogServer) SubmitACFM(ctx context.Context, in *pf.SubmitACFMRequest) (*
 	if errFinishDeleg != nil {
 		return res, errFinishDeleg
 	}
+
+	log.Println("LogConfirm created")
 
 	// Create response
 	lconfByte, _ := loggconf.ConfirmToTransportBytes()

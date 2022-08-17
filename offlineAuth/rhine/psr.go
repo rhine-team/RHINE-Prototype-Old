@@ -17,6 +17,14 @@ type Psr struct {
 	ParentZone string
 }
 
+func CreatePsr(pcert *x509.Certificate, rsig *RhineSig) *Psr {
+	psr := Psr{
+		psignedcsr: *rsig,
+		pcert:      pcert,
+	}
+	return &psr
+}
+
 // roots is a pool of trust roots to check the certi against
 func (psr *Psr) Verify(roots *x509.CertPool) error {
 	// verify  csr
@@ -58,6 +66,10 @@ func (psr *Psr) GetRhineSig() RhineSig {
 
 func (psr *Psr) GetLogs() []string {
 	return psr.csr.logs
+}
+
+func (psr *Psr) GetCsr() *Csr {
+	return psr.csr
 }
 
 func (psr *Psr) GetAlFromCSR() AuthorityLevel {

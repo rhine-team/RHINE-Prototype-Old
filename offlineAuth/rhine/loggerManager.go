@@ -15,6 +15,7 @@ import (
 	badger "github.com/dgraph-io/badger/v3"
 	"github.com/google/certificate-transparency-go/tls"
 	"github.com/google/certificate-transparency-go/x509"
+	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/rhine-team/RHINE-Prototype/offlineAuth/components/aggregator"
 )
 
@@ -35,7 +36,7 @@ type LogManager struct {
 
 	Dsalog       *DSALog
 	T            uint64
-	RequestCache map[string]RememberRequest
+	RequestCache cmap.ConcurrentMap[RememberRequest]
 
 	CTAddress string
 	CTPrefix  string
@@ -184,7 +185,7 @@ func NewLogManager(config LogConfig) *LogManager {
 	}
 
 	// Start up RequestCache
-	mylog.RequestCache = make(map[string]RememberRequest)
+	mylog.RequestCache = cmap.New[RememberRequest]()
 
 	return &mylog
 
@@ -270,14 +271,14 @@ func (lm *LogManager) VerifyNewDelegationRequestLog(rcertp *x509.Certificate, ac
 	}
 
 	// Store important data in Request cache
-	lm.RequestCache[string(psr.csr.rid)] = RememberRequest{
+	lm.RequestCache.Set(string(psr.csr.rid), RememberRequest{
 		Rid:        psr.csr.rid,
 		NDS:        nds,
 		PreRCc:     precert,
 		ParentCert: rcertp,
-	}
+	})
 
-	log.Printf("Request cache entry: %+v", lm.RequestCache[string(psr.csr.rid)])
+	//log.Printf("Request cache entry: %+v", lm.RequestCache[string(psr.csr.rid)])
 
 	return nil, &psr, lwit
 }
@@ -286,8 +287,10 @@ func (lm *LogManager) FinishInitialDelegLog(dsum DSum, nds *Nds, pzone string, p
 	retConf := Confirm{}
 	aggc, err := CreateConfirm(1, nds, lm.Log.Name, dsum, lm.privkey)
 	if err != nil {
+		log.Println("Confirm creation failed", err)
 		return retConf, nil, err
 	}
+	log.Println("Before getting SCT")
 
 	// SCT!
 	url := "http://" + lm.CTAddress + "/" + lm.CTPrefix + "/ct/v1/add-pre-chain"
@@ -299,6 +302,7 @@ func (lm *LogManager) FinishInitialDelegLog(dsum DSum, nds *Nds, pzone string, p
 	// Append Cert to log and get a SCT!
 	sct, errsct := SendPreCertToLogBackend(url, chain)
 	if errsct != nil {
+		log.Println("Appending to backend log failed: ", errsct)
 		return retConf, nil, errsct
 	}
 
@@ -340,6 +344,8 @@ func (lm *LogManager) GetDSAfromAggregators() {
 
 	// Add results to badger and to cache
 	// TODO add to cache
+	count := 0
+	counti := 0
 	for _, bytesdsa := range r.DSAPayload {
 		// Deseri
 		dsares := &DSA{}
@@ -358,7 +364,11 @@ func (lm *LogManager) GetDSAfromAggregators() {
 			return
 		}
 
+		count += len(bytesdsa)
+		counti += 1
 		log.Println("Logger: Added a DSA")
 	}
+
+	log.Println("Size of DSA empty:", count, counti)
 
 }

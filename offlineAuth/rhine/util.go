@@ -32,9 +32,29 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	linproc "github.com/c9s/goprocinfo/linux"
+	//"github.com/mackerelio/go-osstat/memory"
 )
 
-// Some of these functions are from the old offlineAuth implementation
+var measureTimes = true
+
+//var measureCore = 4
+
+func GetSystemStats(oldIdle float64, oldCpu float64) (float64, float64, float64) {
+	stat, _ := linproc.ReadStat("/proc/stat")
+	newCpu := float64(SumCPUStat(stat.CPUStatAll))
+	newIdle := float64(stat.CPUStatAll.Idle)
+	cpuDelta := newCpu - oldCpu
+	idleDelta := newIdle - oldIdle
+	return (100.0 * (cpuDelta - idleDelta) / cpuDelta), newCpu, newIdle
+}
+
+func SumCPUStat(cpu linproc.CPUStat) float64 {
+	res := cpu.User + cpu.Nice + cpu.System + cpu.Idle + cpu.IOWait + cpu.IRQ + cpu.SoftIRQ + cpu.Steal + cpu.Guest + cpu.GuestNice
+	resf := float64(res-cpu.Idle) / float64(res)
+	return resf * 100.0
+}
 
 func DisableConsoleOutput() {
 	log.SetFlags(0)

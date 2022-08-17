@@ -8,6 +8,7 @@ import (
 	"time"
 
 	badger "github.com/dgraph-io/badger/v3"
+	cmap "github.com/orcaman/concurrent-map/v2"
 	//"github.com/rhine-team/RHINE-Prototype/offlineAuth/merkletree"
 )
 
@@ -15,13 +16,14 @@ var defaultHashStrat = sha256.New
 var CACHE_MAX_SIZE = 10000
 
 type DSALog struct {
-	zoneToDSA map[string]*DSA
+	zoneToDSA cmap.ConcurrentMap[*DSA] //map[string]*DSA
 	T         uint64
 }
 
 func NewDSALog() *DSALog {
+	zToDsa := cmap.New[*DSA]()
 	dsalog := &DSALog{
-		zoneToDSA: make(map[string]*DSA),
+		zoneToDSA: zToDsa, //zoneToDSA: make(map[string]*DSA),
 	}
 	return dsalog
 }
@@ -77,7 +79,7 @@ func (lm *DSALog) DSProofRet(PZone string, CZone string, ptype MPathProofType, d
 	var err error
 
 	// Check cache
-	log, pres := lm.zoneToDSA[PZone]
+	log, pres := lm.zoneToDSA.Get(PZone) //lm.zoneToDSA[PZone]
 
 	//logger.Println("how it looks ", log)
 
@@ -190,7 +192,8 @@ func (lm *DSALog) DSProofRet(PZone string, CZone string, ptype MPathProofType, d
 	return dsp, nil
 }
 
-func (d *DSALog) AddDelegationStatus(pZone string, pAlv AuthorityLevel, pCert []byte, exp time.Time, cZone string, cAlv AuthorityLevel, cCert []byte, db *badger.DB) error {
+func (dl *DSALog) AddDelegationStatus(pZone string, pAlv AuthorityLevel, pCert []byte, exp time.Time, cZone string, cAlv AuthorityLevel, cCert []byte, db *badger.DB) error {
+	logd := dl.zoneToDSA
 
 	newDelegZone := DSLeafZone{
 		Zone:     cZone,
@@ -199,19 +202,20 @@ func (d *DSALog) AddDelegationStatus(pZone string, pAlv AuthorityLevel, pCert []
 	}
 
 	// Check if cache is full
-	if len(d.zoneToDSA) > CACHE_MAX_SIZE {
+	if len(dl.zoneToDSA) > CACHE_MAX_SIZE {
 		// Delete an entry from cache
 		// TODO a better replacement scheme than this
 		var key string
-		for k, _ := range d.zoneToDSA {
-			key = k
+		for k, _ := range dl.zoneToDSA {
+			key = string(k)
 			break
 		}
-		delete(d.zoneToDSA, key)
+
+		logd.Remove(key) //delete(d.zoneToDSA, key)
 	}
 
 	// Check if DSA for parent zone exists
-	dsa, prs := d.zoneToDSA[pZone]
+	dsa, prs := logd.Get(pZone) //:= d.zoneToDSA[pZone]
 	if !prs {
 		content := []DSLeafContent{}
 		content = InsertNewDSLeafZone(content, newDelegZone)
@@ -229,7 +233,7 @@ func (d *DSALog) AddDelegationStatus(pZone string, pAlv AuthorityLevel, pCert []
 			Acc:      newTree,
 			Subzones: content,
 		}
-		d.zoneToDSA[pZone] = dsa
+		logd.Set(pZone, dsa) //d.zoneToDSA[pZone] = dsa
 	} else {
 		// A DSA for the parent zone exists
 		dsa.Subzones = InsertNewDSLeafZone(dsa.Subzones, newDelegZone)
@@ -291,7 +295,8 @@ func (d *DSALog) AddDelegationStatus(pZone string, pAlv AuthorityLevel, pCert []
 		Acc:      newTreeChild,
 		Subzones: content,
 	}
-	d.zoneToDSA[cZone] = dsanew
+	//TODO
+	//d.zoneToDSA[cZone] = dsanew
 
 	// The new DSA of the child can be added
 	dsanew.Acc.PrepareForMarshalling()
