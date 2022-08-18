@@ -137,14 +137,10 @@ func (n *Nds) MatchWithConfirm(conf []Confirm) bool {
 }
 
 // This function is used to gen bytes for signing
+/*
 func (n *Nds) NdsToSignBytes() ([]byte, error) {
 	hasher := sha256.New()
 
-	/*
-		for _, l := range n.Nds.Log {
-			hasher.Write([]byte(l))
-		}
-	*/
 
 	for _, a := range n.Nds.Agg {
 		hasher.Write([]byte(a))
@@ -162,6 +158,16 @@ func (n *Nds) NdsToSignBytes() ([]byte, error) {
 	}
 
 	return hasher.Sum(nil), nil
+}
+*/
+
+func (n *Nds) NdsToSignBytes() ([]byte, error) {
+	hasher := sha256.New()
+	bytes, err := n.NdsToBytes()
+	if err != nil {
+		return []byte{}, err
+	}
+	return hasher.Sum(bytes), nil
 }
 
 /*

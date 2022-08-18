@@ -24,10 +24,13 @@ import (
 // Set timeout
 var timeout = time.Second * 30
 var count uint64
+var f *os.File
+var ft *os.File
+var cpuPercent []float64
+
+var measureT = true
 var startTime time.Time
 var intervalTime time.Time
-var f *os.File
-var cpuPercent []float64
 
 type SCTandLConf struct {
 	sct        []byte
@@ -53,6 +56,17 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		intervalTime = time.Now()
 		f, _ = os.Create("CAStats" + fmt.Sprintf("%d%d", time.Now().Hour(), time.Now().Minute()) + ".csv")
 		cpuPercent, _ = cpu.Percent(0, true)
+
+		if measureT {
+			ft, _ = os.Create("CATimeStats" + ".csv")
+		}
+	}
+
+	var measureTimes time.Time
+	var elapsedTimes int64
+	if measureT {
+		elapsedTimes = 0
+		measureTimes = time.Now()
 	}
 
 	log.Printf("Received NewDeleg from Child with RID %s", rhine.EncodeBase64(in.Rid))
@@ -83,6 +97,10 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 	log.Println("Initial verification steps passed, procceding with DSP")
 
 	// Now we run DSProofRet to get dsps
+
+	if measureT {
+		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
+	}
 
 	// Make dspRequest
 	dspRequest := &logp.DSProofRetRequest{Childzone: psr.ChildZone, Parentzone: psr.ParentZone}
@@ -143,6 +161,10 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 
 	log.Println("All DSProofs fine")
 
+	if measureT {
+		measureTimes = time.Now()
+	}
+
 	// Create PreRC and NDS
 	preRC := s.Ca.CreatePoisonedCert(psr)
 	nds, errnds := s.Ca.CreateNDS(psr, preRC)
@@ -162,6 +184,10 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 	acsrLog := &logp.RhineSig{
 		Data: in.Acsr.Data,
 		Sig:  in.Acsr.Sig,
+	}
+
+	if measureT {
+		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
 	}
 
 	// Wait for DSProof goroutines
@@ -212,6 +238,10 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		return res, err
 	}
 
+	if measureT {
+		measureTimes = time.Now()
+	}
+
 	// Collect the Lwits from the routines
 	for i := range psr.GetLogs() {
 		l := <-logWitnessReturns
@@ -250,6 +280,10 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		Acsrpayload:   acsr.Data,
 		Acsrsignature: acsr.Signature,
 		Rcertp:        rcertp.Raw,
+	}
+
+	if measureT {
+		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
 	}
 
 	// Send all allgregs the log witnesses
@@ -298,6 +332,10 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		return res, err
 	}
 
+	if measureT {
+		measureTimes = time.Now()
+	}
+
 	// Collect the Lwits from the routines
 	for i := range nds.Nds.Agg {
 		aCR := <-aggConfirmReturns
@@ -321,6 +359,10 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 
 	// Communicate back to the log and hand in the AggConfirms
 	// Connection already established :
+
+	if measureT {
+		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
+	}
 
 	// Collect LogConfirms
 	logConfirmList := make([]rhine.Confirm, len(psr.GetLogs()))
@@ -357,6 +399,10 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 	// Wait for loggers responses
 	if err := errGroup.Wait(); err != nil {
 		return res, err
+	}
+
+	if measureT {
+		measureTimes = time.Now()
 	}
 
 	// Collect the SCTS and Confirms from the routines
@@ -398,6 +444,11 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		Rid:    in.Rid,
 	}
 
+	if measureT {
+		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
+		ft.WriteString(fmt.Sprintf("%d\n", elapsedTimes))
+	}
+
 	atomic.AddUint64(&count, 1)
 	if time.Since(intervalTime) > time.Second*5 {
 		elapsed := time.Since(startTime)
@@ -405,7 +456,10 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		intervalTime = time.Now()
 
 		// Calc CPU util
-		cpuPercent, _ = cpu.Percent(0, true)
+		cpuNew, _ := cpu.Percent(0, true)
+		if len(cpuNew) != 0 || cpuNew[0] == 0.0 {
+			cpuPercent = cpuNew
+		}
 		f.WriteString(fmt.Sprintf("%f,%d,%f,%f\n", elapsed.Seconds(), count, float64(count)/elapsed.Seconds(), cpuPercent))
 		f.Sync()
 	}

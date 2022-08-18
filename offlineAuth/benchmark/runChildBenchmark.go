@@ -1,19 +1,22 @@
 package main
 
 import (
+	//"bufio"
 	"fmt"
 	"log"
 	"os"
-	"strconv"
+	"os/exec"
 	"time"
 
-	"crypto/ed25519"
-	"crypto/rand"
-	mrand "math/rand"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	//"time"
 
 	badger "github.com/dgraph-io/badger/v3"
-	"github.com/rhine-team/RHINE-Prototype/offlineAuth/rhine"
-	"golang.org/x/exp/slices"
+	//"github.com/rhine-team/RHINE-Prototype/offlineAuth/rhine"
+	//"golang.org/x/exp/slices"
 )
 
 // This script should be run on the parent server
@@ -24,129 +27,108 @@ var parentKeyPrefix = "PARENTSK_"
 var parentCertPrefix = "PARENTCERT_"
 
 func main() {
-	fmt.Println("The following arguments needed: [ParentDB (1)] [CAKey (2)] [CACert (3)] [NumberParents (4)] [NumberCHildrenPerParent (5)] [ChildKeysOutputPath (6)] [ParenCertOutputPath (7)]")
+	fmt.Println("The following arguments needed: [ChildConfigPath (1)] [ChildKeyFileDir 2] [RequestRate 3]")
 	// Path must end in a slash
 
-	if len(os.Args) < 8 {
-		log.Fatal("Need 8 arguments, not ", os.Args)
+	if len(os.Args) < 4 {
+		log.Fatal("Need 3 arguments, not ", os.Args)
 	}
 
-	numParents, _ := strconv.Atoi(os.Args[4])
-	numChildren, _ := strconv.Atoi(os.Args[5])
+	sleeptime, _ := strconv.Atoi(os.Args[3])
 
-	// Open  parent database (should be created if not existing yet)
-	db, errdb := badger.Open(badger.DefaultOptions(os.Args[1]))
-	if errdb != nil {
-		log.Fatal("Badger error: ", errdb)
-	}
-	defer db.Close()
-
-	// Parse CA priv key
-	privKeyCA, errCA := rhine.LoadPrivateKeyEd25519(os.Args[2])
-	if errCA != nil {
-		log.Fatalf("Could not lead priv CA", errCA)
-	}
-
-	// Create a list of parent names
-	parentNames := RandomNames(numParents)
-
-	//parentPriv := []*ed25519.PrivateKey{}
-	//parentPub := []*ed25519.PublicKey{}
-	for i := 0; i < numParents; i++ {
-		// Create parent keys
-		pbkey, privatekey, err := ed25519.GenerateKey(rand.Reader)
-		if err != nil {
-			log.Fatalf("Failed creating ed25519 key")
+	if false {
+		// Open  parent database (should be created if not existing yet)
+		db, errdb := badger.Open(badger.DefaultOptions(os.Args[1]))
+		if errdb != nil {
+			log.Fatal("Badger error: ", errdb)
 		}
+		defer db.Close()
 
-		// Create Parent certs
-		pName := parentNames[i] + zoneFixed
-		certbytes, errcert := rhine.CreateCertificateUsingCA(pbkey, privatekey, privKeyCA, os.Args[3], pName)
-		if errcert != nil {
-			log.Fatalf("Creating parent cert fail:", errcert)
-		}
-
-		// Save parent cert
-		err = rhine.StoreCertificatePEM(os.Args[7]+"CERT_"+pName+".pem", certbytes)
-		if err != nil {
-			log.Fatalf("Storing cert fail", err)
-		}
-
-		// Save cert and public key to DB
-		// Save cert to parent DB
-		err = db.Update(func(txn *badger.Txn) error {
-			err := txn.Set([]byte(parentCertPrefix+pName), certbytes)
-			return err
+		child := []string{}
+		err := db.View(func(txn *badger.Txn) error {
+			opts := badger.DefaultIteratorOptions
+			opts.PrefetchSize = 10
+			it := txn.NewIterator(opts)
+			defer it.Close()
+			for it.Rewind(); it.Valid(); it.Next() {
+				item := it.Item()
+				k := item.Key()
+				err := item.Value(func(v []byte) error {
+					//fmt.Printf("key=%s, value=%s\n", k, v)
+					ki := string(k)
+					if strings.HasPrefix(ki, childkeyPrefix) {
+						child = append(child, strings.TrimPrefix(ki, childkeyPrefix))
+					}
+					return nil
+				})
+				if err != nil {
+					return err
+				}
+			}
+			return nil
 		})
 		if err != nil {
-			log.Fatalf("Saving to DB fail", err)
+			log.Fatalln("Error db: ", err)
 		}
-		// Save parent priv key to DB
-		err = db.Update(func(txn *badger.Txn) error {
-			err := txn.Set([]byte(parentKeyPrefix+pName), privatekey)
-			return err
-		})
+	}
+	//log.Println("childs", child)
+	log.Println("Db read")
+
+	childKeyPath := []string{}
+	childNames := []string{}
+
+	filepath.Walk(os.Args[2], func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			log.Fatalf("Saving parent priv key fail to DB", err)
+			log.Fatalf(err.Error())
 		}
-
-		// Create children
-		childrenNames := RandomNames(numChildren)
-		for j := 0; j < numChildren; j++ {
-			pbkeyChild, privatekeyChild, err := ed25519.GenerateKey(rand.Reader)
-			if err != nil {
-				log.Fatalf("Failed creating ed25519 key for a child")
-			}
-
-			cName := childrenNames[j] + "." + pName
-			// Save the keys to disk
-			err = rhine.StorePublicKeyEd25519(os.Args[6]+cName+"_pub.pem", pbkeyChild)
-			if err != nil {
-				log.Fatalf("Could not save pk to disk", err)
-			}
-
-			err = rhine.StorePrivateKeyEd25519(os.Args[6]+cName+".pem", privatekeyChild)
-			if err != nil {
-				log.Fatalf("Storing priv key failed ", err)
-			}
-
-			// Save pubkey to parent DB
-			err = db.Update(func(txn *badger.Txn) error {
-				err := txn.Set([]byte(childkeyPrefix+cName), pbkeyChild)
-				return err
-			})
-			if numParents*numChildren%50 == 0 {
-				log.Println("Saved ", j, " child data for parent: ", i)
-			}
-
+		//fmt.Printf("File Name: %s\n", info.Name())
+		if !strings.Contains(info.Name(), "_pub") && strings.Contains(info.Name(), ".pem") {
+			zoneName := strings.Replace(info.Name(), ".pem", "", 1)
+			childNames = append(childNames, zoneName)
+			childKeyPath = append(childKeyPath, os.Args[2]+"/"+info.Name())
 		}
+		return nil
+	})
+	//log.Println("childnames", childNames)
+	//log.Println("keypath", childKeyPath)
+
+	for i, name := range childNames {
+		cmdI := fmt.Sprint("../build/zoneManager RequestDeleg --config ", os.Args[1], " --output data/certs/delegResultCert.pem ", "--zone ", name, " --privkey ", childKeyPath[i], " &")
+		cmd := exec.Command("bash", "-c", cmdI)
+		//stderr, _ := cmd.StderrPipe()
+		if err := cmd.Start(); err != nil {
+			log.Println(err)
+		}
+		log.Println("Started a client run")
+		log.Println(cmdI)
+		/*
+			scanner := bufio.NewScanner(stderr)
+			for scanner.Scan() {
+				fmt.Println(scanner.Text())
+			}
+		*/
+		time.Sleep(time.Duration(sleeptime) * time.Microsecond)
 
 	}
 
-}
-
-func RandomNames(numberNames int) []string {
-	reslist := make([]string, numberNames)
-
-	for i := range reslist {
-		newName := RandomName()
-		// Check if already chosen
-		for slices.Contains(reslist, newName) {
-			newName = RandomName()
+	/*
+		var err error
+		parentName = GetParentZone(childName)
+		// Get pcert
+		pcerti, err = GetValueFromDB(zm.DB, []byte(parentCertPrefix+parentName))
+		if err != nil {
+			return nil, nil, nil, errors.New("Not a child zone of this parent!")
 		}
-		reslist[i] = newName
-	}
-	return reslist
-}
+		// Get parent key
+		privatekeyparent, err = GetValueFromDB(zm.DB, []byte(parentKeyPrefix+parentName))
+		if err != nil {
+			return nil, nil, nil, errors.New("Not a child zone of this parent!")
+		}
+		// Get child key
+		pKey, err = GetValueFromDB(zm.DB, []byte(childkeyPrefix+childName))
+		if err != nil {
+			return nil, nil, nil, errors.New("Not a child zone of this parent!")
+		}
+	*/
 
-func RandomName() string {
-	lengthName := 15
-	chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
-	mrand.Seed(time.Now().UnixNano())
-	res := make([]rune, lengthName)
-	for j := range res {
-		random := mrand.Intn(len(chars))
-		res[j] = chars[random]
-	}
-	return string(res)
 }

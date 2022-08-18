@@ -4,8 +4,10 @@ import (
 	"context"
 
 	"bytes"
+	"fmt"
 	"log"
 	"net"
+	"os"
 
 	"time"
 
@@ -32,6 +34,9 @@ var ZoneIsIndependent bool
 var ZoneIsDelegationOnly bool
 var PrivateKeyPath string
 
+var ft1, ft2 *os.File
+var measureT = true
+
 // Set timeout
 var timeout = time.Second * 30
 
@@ -48,6 +53,20 @@ var RequestDelegCmd = &cobra.Command{
 	Long:    "Use to request a delegation to receive a RCertificate",
 	Args:    nil,
 	Run: func(cmd *cobra.Command, args []string) {
+		if measureT && ft1 == nil {
+			ft1, _ = os.OpenFile("TotalTimeStats"+".csv", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+			ft2, _ = os.OpenFile("DetailedChildTimeStats"+".csv", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+		}
+		var measureTimes time.Time
+		var elapsedTimes int64
+		var measureTimesD time.Time
+		var elapsedTimesD int64
+		if measureT {
+			elapsedTimes = 0
+			measureTimes = time.Now()
+			elapsedTimesD = 0
+			measureTimesD = time.Now()
+		}
 		// Input
 		expirationTime := time.Now().Add(time.Hour * 24 * 180)
 		revocationBit := 0
@@ -93,6 +112,10 @@ var RequestDelegCmd = &cobra.Command{
 		}
 		log.Println("Created a signed CSR")
 
+		if measureT {
+			elapsedTimesD = elapsedTimesD + time.Since(measureTimesD).Microseconds()
+		}
+
 		// Connect to the parent
 		conn := rhine.GetGRPCConn(cof.ParentServerAddr)
 		log.Println("Established connection to Parent at: ", cof.ParentServerAddr)
@@ -111,6 +134,10 @@ var RequestDelegCmd = &cobra.Command{
 		log.Println("Received a response from parent for Delegation Request")
 		// Close connection
 		conn.Close()
+
+		if measureT {
+			measureTimesD = time.Now()
+		}
 
 		// Parse the response
 		apv := &rhine.RhineSig{
@@ -138,6 +165,10 @@ var RequestDelegCmd = &cobra.Command{
 			Sig:  r.Approvalcommit.Sig,
 		}
 
+		if measureT {
+			elapsedTimesD = elapsedTimesD + time.Since(measureTimesD).Microseconds()
+		}
+
 		connCA := rhine.GetGRPCConn(cof.CAServerAddr)
 
 		defer connCA.Close()
@@ -153,6 +184,10 @@ var RequestDelegCmd = &cobra.Command{
 			log.Fatalf("Negative response from CA: %v", err)
 		}
 		log.Println("Received response from CA")
+
+		if measureT {
+			measureTimesD = time.Now()
+		}
 
 		// Parse received certificate
 		childce, parseerr := x509.ParseCertificate(rCA.Rcertc)
@@ -215,6 +250,14 @@ var RequestDelegCmd = &cobra.Command{
 		// Store the certificate
 		if rhine.StoreCertificatePEM(OutputPath, rCA.Rcertc) != nil {
 			log.Fatal("Failed storing returned RHINE cert")
+		}
+
+		if measureT {
+			elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
+			ft1.WriteString(fmt.Sprintf("%d\n", elapsedTimes))
+			elapsedTimesD = elapsedTimesD + time.Since(measureTimesD).Microseconds()
+			ft2.WriteString(fmt.Sprintf("%d\n", elapsedTimes))
+
 		}
 
 		// Print certificate

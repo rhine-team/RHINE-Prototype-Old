@@ -2,151 +2,42 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"time"
 
-	"crypto/ed25519"
-	"crypto/rand"
-	mrand "math/rand"
-
-	badger "github.com/dgraph-io/badger/v3"
-	"github.com/rhine-team/RHINE-Prototype/offlineAuth/rhine"
-	"golang.org/x/exp/slices"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/mem"
+	//"github.com/rhine-team/RHINE-Prototype/offlineAuth/rhine"
 )
 
-// This script should be run on the parent server
-
-var zoneFixed = ".benchmark.ch"
-var childkeyPrefix = "CHILDPK_"
-var parentKeyPrefix = "PARENTSK_"
-var parentCertPrefix = "PARENTCERT_"
+var ft1 *os.File
 
 func main() {
-	fmt.Println("The following arguments needed: [ParentDB (1)] [CAKey (2)] [CACert (3)] [NumberParents (4)] [NumberCHildrenPerParent (5)] [ChildKeysOutputPath (6)] [ParenCertOutputPath (7)]")
-	// Path must end in a slash
+	fmt.Println("The following arguments needed: [Interval 1]")
+	measureInter, _ := strconv.Atoi(os.Args[1])
+	ft1, _ = os.Create("SystemGeneralStats" + ".csv")
+	var startTime time.Time
+	startTime = time.Now()
+	for true {
+		elapsed := time.Since(startTime)
+		cpuPercent, _ := cpu.Percent(0, true)
 
-	if len(os.Args) < 8 {
-		log.Fatal("Need 8 arguments, not ", os.Args)
+		//Memory (from stackoverflow)
+		vmStat, _ := mem.VirtualMemory()
+		totalmemMB := vmStat.Total / (1048476)
+		//freememMB := vmStat.Free / (102410124)
+		//fmt.Println("Total memory: ", strconv.FormatUint(vmStat.Total/(10241024), 10)+" MB")
+		//fmt.Println("Free memory: ", strconv.FormatUint(vmStat.Free/(10241024), 10)+" MB")
+
+		// Cached and swap memory are ignored. Should be considered to get the understanding of the used %
+		memusedMB := int(vmStat.UsedPercent / 100 * float64(totalmemMB))
+
+		stri := fmt.Sprintf("%s,%f,%f,%s,%d,%d\n", time.Now().String(), elapsed.Seconds(), cpuPercent, strconv.FormatFloat(vmStat.UsedPercent, 'f', 2, 64), memusedMB, totalmemMB)
+		ft1.WriteString(stri)
+		fmt.Println(stri)
+		time.Sleep(time.Duration(measureInter) * time.Second)
+		ft1.Sync()
 	}
 
-	numParents, _ := strconv.Atoi(os.Args[4])
-	numChildren, _ := strconv.Atoi(os.Args[5])
-
-	// Open  parent database (should be created if not existing yet)
-	db, errdb := badger.Open(badger.DefaultOptions(os.Args[1]))
-	if errdb != nil {
-		log.Fatal("Badger error: ", errdb)
-	}
-	defer db.Close()
-
-	// Parse CA priv key
-	privKeyCA, errCA := rhine.LoadPrivateKeyEd25519(os.Args[2])
-	if errCA != nil {
-		log.Fatalf("Could not lead priv CA", errCA)
-	}
-
-	// Create a list of parent names
-	parentNames := RandomNames(numParents)
-
-	//parentPriv := []*ed25519.PrivateKey{}
-	//parentPub := []*ed25519.PublicKey{}
-	for i := 0; i < numParents; i++ {
-		// Create parent keys
-		pbkey, privatekey, err := ed25519.GenerateKey(rand.Reader)
-		if err != nil {
-			log.Fatalf("Failed creating ed25519 key")
-		}
-
-		// Create Parent certs
-		pName := parentNames[i] + zoneFixed
-		certbytes, errcert := rhine.CreateCertificateUsingCA(pbkey, privatekey, privKeyCA, os.Args[3], pName)
-		if errcert != nil {
-			log.Fatalf("Creating parent cert fail:", errcert)
-		}
-
-		// Save parent cert
-		err = rhine.StoreCertificatePEM(os.Args[7]+"CERT_"+pName+".pem", certbytes)
-		if err != nil {
-			log.Fatalf("Storing cert fail", err)
-		}
-
-		// Save cert and public key to DB
-		// Save cert to parent DB
-		err = db.Update(func(txn *badger.Txn) error {
-			err := txn.Set([]byte(parentCertPrefix+pName), certbytes)
-			return err
-		})
-		if err != nil {
-			log.Fatalf("Saving to DB fail", err)
-		}
-		// Save parent priv key to DB
-		err = db.Update(func(txn *badger.Txn) error {
-			err := txn.Set([]byte(parentKeyPrefix+pName), privatekey)
-			return err
-		})
-		if err != nil {
-			log.Fatalf("Saving parent priv key fail to DB", err)
-		}
-
-		// Create children
-		childrenNames := RandomNames(numChildren)
-		for j := 0; j < numChildren; j++ {
-			pbkeyChild, privatekeyChild, err := ed25519.GenerateKey(rand.Reader)
-			if err != nil {
-				log.Fatalf("Failed creating ed25519 key for a child")
-			}
-
-			cName := childrenNames[j] + "." + pName
-			// Save the keys to disk
-			err = rhine.StorePublicKeyEd25519(os.Args[6]+cName+"_pub.pem", pbkeyChild)
-			if err != nil {
-				log.Fatalf("Could not save pk to disk", err)
-			}
-
-			err = rhine.StorePrivateKeyEd25519(os.Args[6]+cName+".pem", privatekeyChild)
-			if err != nil {
-				log.Fatalf("Storing priv key failed ", err)
-			}
-
-			// Save pubkey to parent DB
-			err = db.Update(func(txn *badger.Txn) error {
-				err := txn.Set([]byte(childkeyPrefix+cName), pbkeyChild)
-				return err
-			})
-			if numParents*numChildren%50 == 0 {
-				log.Println("Saved ", j, " child data for parent: ", i)
-			}
-
-		}
-
-	}
-
-}
-
-func RandomNames(numberNames int) []string {
-	reslist := make([]string, numberNames)
-
-	for i := range reslist {
-		newName := RandomName()
-		// Check if already chosen
-		for slices.Contains(reslist, newName) {
-			newName = RandomName()
-		}
-		reslist[i] = newName
-	}
-	return reslist
-}
-
-func RandomName() string {
-	lengthName := 15
-	chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
-	mrand.Seed(time.Now().UnixNano())
-	res := make([]rune, lengthName)
-	for j := range res {
-		random := mrand.Intn(len(chars))
-		res[j] = chars[random]
-	}
-	return string(res)
 }

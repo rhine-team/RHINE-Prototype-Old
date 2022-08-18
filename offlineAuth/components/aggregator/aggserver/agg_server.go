@@ -3,13 +3,19 @@ package aggserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"os"
+	"time"
 
 	"github.com/google/certificate-transparency-go/x509"
 	_ "github.com/rhine-team/RHINE-Prototype/offlineAuth/cbor"
 	pf "github.com/rhine-team/RHINE-Prototype/offlineAuth/components/aggregator"
 	"github.com/rhine-team/RHINE-Prototype/offlineAuth/rhine"
 )
+
+var ft1 *os.File
+var measureT = true
 
 type AggServer struct {
 	pf.UnimplementedAggServiceServer
@@ -33,6 +39,15 @@ func (s *AggServer) DSRetrieval(ctx context.Context, in *pf.RetrieveDSALogReques
 }
 
 func (s *AggServer) SubmitNDS(ctx context.Context, in *pf.SubmitNDSRequest) (*pf.SubmitNDSResponse, error) {
+	if measureT && ft1 == nil {
+		ft1, _ = os.Create("AggTimeStats" + ".csv")
+	}
+	var measureTimes time.Time
+	var elapsedTimes int64
+	if measureT {
+		elapsedTimes = 0
+		measureTimes = time.Now()
+	}
 	res := &pf.SubmitNDSResponse{}
 
 	log.Printf("SubmitNDS service called with RID: %s\n", rhine.EncodeBase64(in.Rid))
@@ -120,6 +135,12 @@ func (s *AggServer) SubmitNDS(ctx context.Context, in *pf.SubmitNDSRequest) (*pf
 	}
 
 	log.Printf("SubmitNDSResponse sent for RID: %s\n", rhine.EncodeBase64(in.Rid))
+
+	if measureT {
+		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
+		ft1.WriteString(fmt.Sprintf("%d\n", elapsedTimes))
+		ft1.Sync()
+	}
 
 	return res, nil
 }

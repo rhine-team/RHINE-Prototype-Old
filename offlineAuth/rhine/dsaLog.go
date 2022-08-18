@@ -13,7 +13,7 @@ import (
 )
 
 var defaultHashStrat = sha256.New
-var CACHE_MAX_SIZE = 10000
+var CACHE_MAX_SIZE = 200000
 
 type DSALog struct {
 	zoneToDSA cmap.ConcurrentMap[*DSA] //map[string]*DSA
@@ -112,6 +112,9 @@ func (lm *DSALog) DSProofRet(PZone string, CZone string, ptype MPathProofType, d
 				//log.Acc, _ = NewTree(log.Subzones)
 				//log.Acc.RestoreAfterMarshalling()
 
+				// Add to cache
+				lm.zoneToDSA.Set(PZone, log)
+
 				return nil
 			})
 			if errview != nil {
@@ -202,7 +205,7 @@ func (dl *DSALog) AddDelegationStatus(pZone string, pAlv AuthorityLevel, pCert [
 	}
 
 	// Check if cache is full
-	if len(dl.zoneToDSA) > CACHE_MAX_SIZE {
+	if dl.zoneToDSA.Count() > CACHE_MAX_SIZE {
 		// Delete an entry from cache
 		// TODO a better replacement scheme than this
 		var key string
@@ -215,6 +218,7 @@ func (dl *DSALog) AddDelegationStatus(pZone string, pAlv AuthorityLevel, pCert [
 	}
 
 	// Check if DSA for parent zone exists
+
 	dsa, prs := logd.Get(pZone) //:= d.zoneToDSA[pZone]
 	if !prs {
 		content := []DSLeafContent{}
@@ -308,6 +312,72 @@ func (dl *DSALog) AddDelegationStatus(pZone string, pAlv AuthorityLevel, pCert [
 	}
 
 	err = db.Update(func(txn *badger.Txn) error {
+
+		err := txn.Set([]byte(cZone), dsabytes)
+		return err
+	})
+	if err != nil {
+		log.Println("DSALog: Error saving new delegation (child) to badger DB", err)
+		return err
+	}
+
+	log.Println("DSALog: New delegation added to cache and badger DB")
+
+	return nil
+}
+
+func (dl *DSALog) AddDelegationStatusShort(pZone string, pAlv AuthorityLevel, pCert []byte, exp time.Time, cZone string, cAlv AuthorityLevel, cCert []byte, db *badger.DB) error {
+	logd := dl.zoneToDSA
+
+	// Check if cache is full
+	if dl.zoneToDSA.Count() > CACHE_MAX_SIZE {
+		// Delete an entry from cache
+		// TODO a better replacement scheme than this
+		var key string
+		for k, _ := range dl.zoneToDSA {
+			key = string(k)
+			break
+		}
+
+		logd.Remove(key) //delete(d.zoneToDSA, key)
+	}
+
+	// The child itself now gets a DSA
+	// We make an empty tree with only the ({negInf, posInf}) element
+	content := []DSLeafContent{}
+
+	emptyTreeCont := DSLeafContent{
+		Start: GetNegativeInfinityZone(),
+		End:   GetPositiveInfinityZone(),
+	}
+
+	content = append(content, emptyTreeCont)
+	newTreeChild, errtree := NewTree(content)
+	if errtree != nil {
+		return errtree
+	}
+
+	dsanew := &DSA{
+		Zone: cZone,
+		Alv:  cAlv,
+		//Exp:      exp,
+		Cert:     cCert,
+		Acc:      newTreeChild,
+		Subzones: content,
+	}
+	//TODO
+	//d.zoneToDSA[cZone] = dsanew
+
+	// The new DSA of the child can be added
+	dsanew.Acc.PrepareForMarshalling()
+	dsabytes, errserial := SerializeCBOR(*dsanew)
+	dsanew.Acc.RestoreAfterMarshalling()
+	if errserial != nil {
+		log.Println("DSALog: Error serializing new child DSA", errserial)
+		return errserial
+	}
+
+	err := db.Update(func(txn *badger.Txn) error {
 
 		err := txn.Set([]byte(cZone), dsabytes)
 		return err
