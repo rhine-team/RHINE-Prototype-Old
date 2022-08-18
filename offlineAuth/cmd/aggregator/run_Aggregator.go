@@ -23,13 +23,14 @@ var configPath string
 var testParentZone string
 var testCertPath string
 var parentCertDirectoryPath string
+var consoleOff bool
 
 var rootCmd = &cobra.Command{
 	Use:   "run_Aggregator",
 	Short: "Aggregator server",
 	Long:  "Server running an aggregator needed for RHINE",
 	Run: func(cmd *cobra.Command, args []string) {
-		if false {
+		if consoleOff {
 			rhine.DisableConsoleOutput()
 		}
 
@@ -186,6 +187,7 @@ var AddDTBatch = &cobra.Command{
 
 func init() {
 	rootCmd.Flags().StringVar(&configPath, "config", "configs/configAgg.json", "ConfigPath")
+	rootCmd.Flags().BoolVar(&consoleOff, "nostd", false, "Disables standard output")
 	WipeDB.Flags().StringVar(&configPath, "config", "configs/configAgg.json", "ConfigPath")
 	AddTestDT.Flags().StringVar(&configPath, "config", "configs/configAgg.json", "ConfigPath")
 	AddTestDT.Flags().StringVar(&testParentZone, "parent", "ethz.ch", "ParentZone")

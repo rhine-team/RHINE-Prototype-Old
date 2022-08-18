@@ -35,7 +35,7 @@ func main() {
 
 		stri := fmt.Sprintf("%s,%f,%f,%s,%d,%d\n", time.Now().String(), elapsed.Seconds(), cpuPercent, strconv.FormatFloat(vmStat.UsedPercent, 'f', 2, 64), memusedMB, totalmemMB)
 		ft1.WriteString(stri)
-		fmt.Println(stri)
+		//fmt.Println(stri)
 		time.Sleep(time.Duration(measureInter) * time.Second)
 		ft1.Sync()
 	}

@@ -15,13 +15,14 @@ import (
 )
 
 var configPath string
+var consoleOff bool
 
 var rootCmd = &cobra.Command{
 	Use:   "run_CA",
 	Short: "CA Server",
 	Long:  "Runs the Certificate Authority for RHINE",
 	Run: func(cmd *cobra.Command, args []string) {
-		if false {
+		if consoleOff {
 			rhine.DisableConsoleOutput()
 		}
 
@@ -52,6 +53,7 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.Flags().StringVar(&configPath, "config", "configs/configCA.json", "ConfigPath")
+	rootCmd.Flags().BoolVar(&consoleOff, "nostd", false, "Disables standard output")
 }
 
 func main() {

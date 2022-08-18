@@ -15,7 +15,7 @@ import (
 )
 
 var ft1 *os.File
-var measureT = true
+var measureT = false
 
 type AggServer struct {
 	pf.UnimplementedAggServiceServer

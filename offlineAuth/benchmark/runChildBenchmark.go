@@ -111,24 +111,4 @@ func main() {
 
 	}
 
-	/*
-		var err error
-		parentName = GetParentZone(childName)
-		// Get pcert
-		pcerti, err = GetValueFromDB(zm.DB, []byte(parentCertPrefix+parentName))
-		if err != nil {
-			return nil, nil, nil, errors.New("Not a child zone of this parent!")
-		}
-		// Get parent key
-		privatekeyparent, err = GetValueFromDB(zm.DB, []byte(parentKeyPrefix+parentName))
-		if err != nil {
-			return nil, nil, nil, errors.New("Not a child zone of this parent!")
-		}
-		// Get child key
-		pKey, err = GetValueFromDB(zm.DB, []byte(childkeyPrefix+childName))
-		if err != nil {
-			return nil, nil, nil, errors.New("Not a child zone of this parent!")
-		}
-	*/
-
 }

@@ -33,9 +33,10 @@ var OutputPath string
 var ZoneIsIndependent bool
 var ZoneIsDelegationOnly bool
 var PrivateKeyPath string
+var consoleOff bool
 
 var ft1, ft2 *os.File
-var measureT = true
+var measureT = false
 
 // Set timeout
 var timeout = time.Second * 30
@@ -56,6 +57,9 @@ var RequestDelegCmd = &cobra.Command{
 		if measureT && ft1 == nil {
 			ft1, _ = os.OpenFile("TotalTimeStats"+".csv", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 			ft2, _ = os.OpenFile("DetailedChildTimeStats"+".csv", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+		}
+		if consoleOff {
+			rhine.DisableConsoleOutput()
 		}
 		var measureTimes time.Time
 		var elapsedTimes int64
@@ -256,7 +260,7 @@ var RequestDelegCmd = &cobra.Command{
 			elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
 			ft1.WriteString(fmt.Sprintf("%d\n", elapsedTimes))
 			elapsedTimesD = elapsedTimesD + time.Since(measureTimesD).Microseconds()
-			ft2.WriteString(fmt.Sprintf("%d\n", elapsedTimes))
+			ft2.WriteString(fmt.Sprintf("%d\n", elapsedTimesD))
 
 		}
 
@@ -274,6 +278,10 @@ var RunParentServer = &cobra.Command{
 	Long:    "Runs the ParentServer, needed by children during inital delegation",
 	Args:    nil,
 	Run: func(cmd *cobra.Command, args []string) {
+		if consoleOff {
+			rhine.DisableConsoleOutput()
+		}
+
 		// Parse config
 		cof, errparse := rhine.LoadZoneConfig(ParentConfig)
 		if errparse != nil {
@@ -307,8 +315,10 @@ func init() {
 	RequestDelegCmd.Flags().BoolVar(&ZoneIsDelegationOnly, "delegOnly", false, "Flag Independent ChildZone")
 	RequestDelegCmd.Flags().StringVar(&ParentServer, "parentaddr", "", "Address with port of parent server")
 	RequestDelegCmd.Flags().StringVar(&PrivateKeyPath, "privkey", "", "Path to private key")
+	RequestDelegCmd.Flags().BoolVar(&consoleOff, "nostd", true, "Disables standard output")
 
 	RunParentServer.Flags().StringVar(&ParentConfig, "config", "configs/parentExample.json", "ConfigPath")
+	RunParentServer.Flags().BoolVar(&consoleOff, "nostd", false, "Disables standard output")
 }
 
 func main() {

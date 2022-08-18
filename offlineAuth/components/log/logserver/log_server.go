@@ -20,7 +20,7 @@ type LogServer struct {
 }
 
 var ft1, ft2 *os.File
-var measureT = true
+var measureT = false
 
 func (s *LogServer) DSProofRet(ctx context.Context, in *pf.DSProofRetRequest) (*pf.DSProofRetResponse, error) {
 	res := &pf.DSProofRetResponse{}

@@ -13,7 +13,7 @@ import (
 )
 
 var ft1 *os.File
-var measureT = true
+var measureT = false
 
 type PServer struct {
 	ps.UnimplementedParentServiceServer
@@ -26,6 +26,10 @@ func (s *PServer) InitDelegation(ctx context.Context, in *ps.InitDelegationReque
 	var elapsedTimes int64
 	if measureT && ft1 == nil {
 		ft1, _ = os.Create("ParentStats" + ".csv")
+	}
+	if measureT {
+		elapsedTimes = 0
+		measureTimes = time.Now()
 	}
 
 	//log.Printf("InitDelegation service called %+v\n", *in)
@@ -59,7 +63,7 @@ func (s *PServer) InitDelegation(ctx context.Context, in *ps.InitDelegationReque
 	log.Printf("Delegation successfull: InitDelegationResponse sent for RID : %s\n", rhine.EncodeBase64(in.Rid))
 
 	if measureT {
-		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
+		elapsedTimes = time.Since(measureTimes).Microseconds()
 		ft1.WriteString(fmt.Sprintf("%d\n", elapsedTimes))
 	}
 	return res, nil

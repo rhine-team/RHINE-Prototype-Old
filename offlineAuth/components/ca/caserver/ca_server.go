@@ -28,7 +28,7 @@ var f *os.File
 var ft *os.File
 var cpuPercent []float64
 
-var measureT = true
+var measureT = false
 var startTime time.Time
 var intervalTime time.Time
 
@@ -457,9 +457,7 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 
 		// Calc CPU util
 		cpuNew, _ := cpu.Percent(0, true)
-		if len(cpuNew) != 0 || cpuNew[0] == 0.0 {
-			cpuPercent = cpuNew
-		}
+		cpuPercent = cpuNew
 		f.WriteString(fmt.Sprintf("%f,%d,%f,%f\n", elapsed.Seconds(), count, float64(count)/elapsed.Seconds(), cpuPercent))
 		f.Sync()
 	}

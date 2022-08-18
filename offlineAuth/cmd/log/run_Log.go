@@ -14,13 +14,14 @@ import (
 )
 
 var configPath string
+var consoleOff bool
 
 var rootCmd = &cobra.Command{
 	Use:   "run_Log",
 	Short: "Front-end logger",
 	Long:  "Front-end logger for RHINE, connects to a trillian-based CT backend",
 	Run: func(cmd *cobra.Command, args []string) {
-		if false {
+		if consoleOff {
 			rhine.DisableConsoleOutput()
 		}
 
@@ -81,6 +82,7 @@ var WipeDB = &cobra.Command{
 
 func init() {
 	rootCmd.Flags().StringVar(&configPath, "config", "configs/configLog.json", "ConfigPath")
+	rootCmd.Flags().BoolVar(&consoleOff, "nostd", false, "Disables standard output")
 	WipeDB.Flags().StringVar(&configPath, "config", "configs/configLog.json", "ConfigPath")
 }
 
