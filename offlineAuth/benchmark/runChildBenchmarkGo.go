@@ -147,7 +147,8 @@ func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOf
 	var errparse error
 	cof, errparse := rhine.LoadZoneConfig(confPath)
 	if errparse != nil {
-		log.Fatalf("Could not parse the config file.")
+		return
+		//log.Fatalf("Could not parse the config file.")
 	}
 
 	// Overwrite config if needed
@@ -178,7 +179,7 @@ func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOf
 	// Make a new Csr
 	csr, errcsr := nzm.CreateSignedCSR(reqAuthorityLevel, expirationTime, nzm.Ca, nzm.LogList, revocationBit)
 	if errcsr != nil {
-		log.Fatalf("Creation of the csr failed! ", errcsr)
+		//log.Fatalf("Creation of the csr failed! ", errcsr)
 		return
 	}
 	log.Println("Created a signed CSR")
@@ -194,7 +195,8 @@ func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOf
 	ctx, _ := context.WithTimeout(context.Background(), timeout)
 	r, err := c.InitDelegation(ctx, &ps.InitDelegationRequest{Rid: csr.ReturnRid(), Csr: csr.ReturnRawBytes()})
 	if err != nil {
-		log.Fatalf("No response from ParentServer: %v", err)
+		return
+		//log.Fatalf("No response from ParentServer: %v", err)
 	}
 	//log.Println("Received a response from parent for Delegation Req.: ", r)
 	log.Println("Received a response from parent for Delegation Request")
@@ -210,12 +212,14 @@ func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOf
 	// Parse parent certificate
 	pcertp, certerr := x509.ParseCertificate(r.Rcertp)
 	if certerr != nil {
-		log.Fatalf("Certificate Parsing failure: %v", certerr)
+		return
+		//log.Fatalf("Certificate Parsing failure: %v", certerr)
 	}
 
 	// Check wheter acsr is valid
 	if !apv.Verify(pcertp.PublicKey) {
-		log.Fatal("Checking acsr failed")
+		return
+		//log.Fatal("Checking acsr failed")
 	}
 
 	log.Println("Parent certificate parsed and parent signed CSR is valid")
@@ -238,7 +242,7 @@ func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOf
 	rCA, errca := cca.SubmitNewDelegCA(ctxca, &ca.SubmitNewDelegCARequest{Rcertp: r.Rcertp, Acsr: caacsr, Rid: csr.ReturnRid()})
 	if errca != nil {
 		log.Println("Request Delegation failed!")
-		log.Fatalf("Negative response from CA: %v", err)
+		//log.Fatalf("Negative response from CA: %v", err)
 	}
 	log.Println("Received response from CA", rCA)
 
