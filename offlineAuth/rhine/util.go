@@ -362,7 +362,10 @@ func LoadPrivateKeyEd25519(path string) (ed25519.PrivateKey, error) {
 		return nil, err
 	}
 
-	block, _ := pem.Decode(bytes)
+	block, errdecode := pem.Decode(bytes)
+	if errdecode {
+		return nil, errdecode
+	}
 
 	privKey := block.Bytes
 	if err != nil {
