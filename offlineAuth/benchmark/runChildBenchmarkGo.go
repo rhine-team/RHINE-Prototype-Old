@@ -176,6 +176,10 @@ func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOf
 	// Make a new ZoneManager
 	nzm := rhine.NewZoneManager(cof)
 
+	if nzm == nil {
+		return
+	}
+
 	// Make a new Csr
 	csr, errcsr := nzm.CreateSignedCSR(reqAuthorityLevel, expirationTime, nzm.Ca, nzm.LogList, revocationBit)
 	if errcsr != nil {

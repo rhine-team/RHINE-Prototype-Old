@@ -88,14 +88,16 @@ func NewZoneManager(config ZoneConfig) *ZoneManager {
 			var err error
 			privKey, err = LoadRSAPrivateKeyPEM(config.PrivateKeyPath)
 			if err != nil {
-				log.Fatal("Error loading private key: ", err)
+				//log.Fatal("Error loading private key: ", err)
+				return nil
 			}
 			pubkey = privKey.(*rsa.PrivateKey).Public()
 		case "Ed25519":
 			var err error
 			privKey, err = LoadPrivateKeyEd25519(config.PrivateKeyPath)
 			if err != nil {
-				log.Fatal("Error loading private key: ", err)
+				//log.Fatal("Error loading private key: ", err)
+				return nil
 			}
 			pubkey = privKey.(ed25519.PrivateKey).Public()
 		}
@@ -106,7 +108,8 @@ func NewZoneManager(config ZoneConfig) *ZoneManager {
 		var err error
 		cert, err = LoadCertificatePEM(config.CertificatePath)
 		if err != nil {
-			log.Fatal("Error loading certificate: ", err)
+			//log.Fatal("Error loading certificate: ", err)
+			return nil
 		}
 	}
 
@@ -115,7 +118,8 @@ func NewZoneManager(config ZoneConfig) *ZoneManager {
 		var err error
 		certCA, err = LoadCertificatePEM(config.CACertificatePath)
 		if err != nil {
-			log.Fatal("Error loading CA certificate: ", err)
+			//log.Fatal("Error loading CA certificate: ", err)
+			return nil
 		}
 	}
 
