@@ -103,8 +103,7 @@ func (s *LogServer) DemandLogging(ctx context.Context, in *pf.DemandLoggingReque
 			DesignatedLogs: lwit.LogList,
 			Log:            lwit.Log.Name,
 			NdsHash:        lwit.NdsBytes,
-			Data:           lwit.Rsig.Data,
-			Sig:            lwit.Rsig.Signature,
+			Sig:            lwit.Signature,
 		},
 		Rid: in.Rid,
 	}

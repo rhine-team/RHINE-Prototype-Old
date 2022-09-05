@@ -54,7 +54,7 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 	if startTime.IsZero() {
 		startTime = time.Now()
 		intervalTime = time.Now()
-		f, _ = os.Create("CAStats" + fmt.Sprintf("%d%d", time.Now().Hour(), time.Now().Minute()) + ".csv")
+		f, _ = os.Create("CAStats" + ".csv")
 		cpuPercent, _ = cpu.Percent(0, true)
 
 		if measureT {
@@ -219,13 +219,10 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 			// Collect Lwits
 			var newLwit rhine.Lwit
 			newLwit = rhine.Lwit{
-				Rsig: &rhine.RhineSig{
-					Data:      rDemandLog.LogWitness.Data,
-					Signature: rDemandLog.LogWitness.Sig,
-				},
-				NdsBytes: rDemandLog.LogWitness.NdsHash,
-				Log:      &rhine.Log{Name: rDemandLog.LogWitness.Log},
-				LogList:  rDemandLog.LogWitness.DesignatedLogs,
+				Signature: rDemandLog.LogWitness.Sig,
+				NdsBytes:  rDemandLog.LogWitness.NdsHash,
+				Log:       &rhine.Log{Name: rDemandLog.LogWitness.Log},
+				LogList:   rDemandLog.LogWitness.DesignatedLogs,
 			}
 			//LogWitnessList = append(LogWitnessList, newLwit)
 			logWitnessReturns <- newLwit
@@ -266,8 +263,7 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 			DesignatedLogs: lwi.LogList,
 			Log:            lwi.Log.Name,
 			NdsHash:        lwi.NdsBytes,
-			Data:           lwi.Rsig.Data,
-			Sig:            lwi.Rsig.Signature,
+			Sig:            lwi.Signature,
 		}
 
 		lwitAggList = append(lwitAggList, lw)

@@ -1,16 +1,16 @@
 package rhine
 
 import (
-	"bytes"
+	//"bytes"
 	"crypto/sha256"
 	"log"
 )
 
 type Lwit struct {
-	Rsig     *RhineSig
-	NdsBytes []byte
-	Log      *Log
-	LogList  []string
+	Signature []byte
+	NdsBytes  []byte
+	Log       *Log
+	LogList   []string
 }
 
 func CreateLwit(nds *Nds, loge *Log, loglist []string, privkey interface{}) (*Lwit, error) {
@@ -39,21 +39,15 @@ func CreateLwit(nds *Nds, loge *Log, loglist []string, privkey interface{}) (*Lw
 	//log.Printf("Pubkey of signing key: %+v \n Data %+v, ", privkey.(ed25519.PrivateKey).Public(), res.Data)
 
 	lwi := &Lwit{
-		Rsig:     res,
-		NdsBytes: byt,
-		Log:      loge,
-		LogList:  loglist,
+		Signature: res.Signature,
+		NdsBytes:  byt,
+		Log:       loge,
+		LogList:   loglist,
 	}
 	return lwi, nil
 }
 
 func (l *Lwit) VerifyLwit(pubKey any) bool {
-	// Verify signature
-	if !l.Rsig.Verify(pubKey) {
-		//log.Printf("Pubkey used  %+v\n Data %+v\n", pubKey, l.Rsig.Data)
-		log.Println("Verification of Lwit failed, signature did not match")
-		return false
-	}
 
 	// Verify that signed content is actually what the Lwit contains
 	hasher := sha256.New()
@@ -66,10 +60,21 @@ func (l *Lwit) VerifyLwit(pubKey any) bool {
 	}
 	resData := hasher.Sum(nil)
 
-	if bytes.Compare(resData, l.Rsig.Data) != 0 {
-		log.Println("Signed data not matching with Log Witness content")
+	rsig := &RhineSig{Data: resData, Signature: l.Signature}
+
+	// Verify signature
+	if !rsig.Verify(pubKey) {
+		//log.Printf("Pubkey used  %+v\n Data %+v\n", pubKey, l.Rsig.Data)
+		log.Println("Verification of Lwit failed, signature did not match")
 		return false
 	}
+
+	/*
+		if bytes.Compare(resData, l.Rsig.Data) != 0 {
+			log.Println("Signed data not matching with Log Witness content")
+			return false
+		}
+	*/
 
 	log.Println("Log witness fully validated!")
 	return true

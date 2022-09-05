@@ -1,13 +1,13 @@
 package rhine
 
 import (
-	"bytes"
+	//"bytes"
 	"crypto/sha256"
 	"log"
 )
 
 type Confirm struct {
-	Rsig         *RhineSig
+	Signature    []byte //*RhineSig
 	NdsHashBytes []byte
 	Dsum         DSum
 	EntityName   string
@@ -54,7 +54,7 @@ func CreateConfirm(aggOrLog int, nds *Nds, entName string, dsu DSum, privkey int
 	//log.Printf("Pubkey of signing key: %+v \n Data %+v, ", privkey.(ed25519.PrivateKey).Public(), res.Data)
 
 	confi := &Confirm{
-		Rsig:         res,
+		Signature:    res.Signature,
 		NdsHashBytes: byt,
 		Dsum:         dsu,
 		EntityName:   entName,
@@ -63,12 +63,6 @@ func CreateConfirm(aggOrLog int, nds *Nds, entName string, dsu DSum, privkey int
 }
 
 func (c *Confirm) VerifyConfirm(pubKey any) bool {
-	// Verify signature
-	if !c.Rsig.Verify(pubKey) {
-		//log.Printf("Pubkey used  %+v\n Data %+v\n", pubKey, l.Rsig.Data)
-		log.Println("Verification of Confirm failed, signature did not match")
-		return false
-	}
 
 	// Verify that signed content is actually what the Lwit contains
 	hasher := sha256.New()
@@ -89,10 +83,24 @@ func (c *Confirm) VerifyConfirm(pubKey any) bool {
 
 	resData := hasher.Sum(nil)
 
-	if bytes.Compare(resData, c.Rsig.Data) != 0 {
-		log.Println("Signed data not matching with Confirm content")
+	rsig := &RhineSig{
+		Data:      resData,
+		Signature: c.Signature,
+	}
+
+	// Verify signature
+	if !rsig.Verify(pubKey) {
+		//log.Printf("Pubkey used  %+v\n Data %+v\n", pubKey, l.Rsig.Data)
+		log.Println("Verification of Confirm failed, signature did not match")
 		return false
 	}
+
+	/*
+		if bytes.Compare(resData, c.Rsig.Data) != 0 {
+			log.Println("Signed data not matching with Confirm content")
+			return false
+		}
+	*/
 
 	//log.Println("Confirm fully validated!")
 	return true

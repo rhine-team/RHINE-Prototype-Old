@@ -134,6 +134,9 @@ var RequestDelegCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("No response from ParentServer: %v", err)
 		}
+
+		// Print
+
 		//log.Println("Received a response from parent for Delegation Req.: ", r)
 		log.Println("Received a response from parent for Delegation Request")
 		// Close connection

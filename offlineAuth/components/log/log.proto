@@ -26,7 +26,6 @@ message Lwit {
 	string Log = 2;
 	bytes NdsHash = 3;
 	bytes Sig = 4;
-	bytes Data = 5;
 }
 
 message Acfm {

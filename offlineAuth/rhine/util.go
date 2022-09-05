@@ -32,8 +32,7 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	linproc "github.com/c9s/goprocinfo/linux"
+	//linproc "github.com/c9s/goprocinfo/linux"
 	//"github.com/mackerelio/go-osstat/memory"
 )
 
@@ -41,6 +40,7 @@ var measureTimes = true
 
 //var measureCore = 4
 
+/*
 func GetSystemStats(oldIdle float64, oldCpu float64) (float64, float64, float64) {
 	stat, _ := linproc.ReadStat("/proc/stat")
 	newCpu := float64(SumCPUStat(stat.CPUStatAll))
@@ -55,6 +55,7 @@ func SumCPUStat(cpu linproc.CPUStat) float64 {
 	resf := float64(res-cpu.Idle) / float64(res)
 	return resf * 100.0
 }
+*/
 
 func DisableConsoleOutput() {
 	log.SetFlags(0)

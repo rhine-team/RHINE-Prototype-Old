@@ -200,8 +200,8 @@ func (lm *LogManager) DSProof(pzone string, czone string) (Dsp, error) {
 	// Sign the DSProof
 	(&dsp).Sign(lm.privkey)
 
-	// TODO remove
-	log.Println("DSP signature validation: ", (&dsp).Sig.Verify(lm.PubKey))
+	// Remove unneeded data
+	(&dsp).Sig.Data = nil
 
 	//log.Printf("DSP in LogManager after generation %+v", dsp)
 	return dsp, nil

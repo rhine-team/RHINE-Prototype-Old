@@ -57,13 +57,10 @@ func (s *AggServer) SubmitNDS(ctx context.Context, in *pf.SubmitNDSRequest) (*pf
 	var LogWitnessList []rhine.Lwit
 	for _, lwit := range in.Lwits {
 		newLwit := rhine.Lwit{
-			Rsig: &rhine.RhineSig{
-				Data:      lwit.Data,
-				Signature: lwit.Sig,
-			},
-			NdsBytes: lwit.NdsHash,
-			Log:      &rhine.Log{Name: lwit.Log},
-			LogList:  lwit.DesignatedLogs,
+			Signature: lwit.Sig,
+			NdsBytes:  lwit.NdsHash,
+			Log:       &rhine.Log{Name: lwit.Log},
+			LogList:   lwit.DesignatedLogs,
 		}
 		LogWitnessList = append(LogWitnessList, newLwit)
 	}
