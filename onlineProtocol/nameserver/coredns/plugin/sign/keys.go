@@ -7,12 +7,14 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
-	"github.com/google/certificate-transparency-go/x509"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/google/certificate-transparency-go/x509"
+	"github.com/rhine-team/RHINE-Prototype/offlineAuth/rhine"
 
 	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/core/dnsserver"
@@ -50,9 +52,11 @@ func keyParse(c *caddy.Controller) ([]Pair, error) {
 		for _, k := range ks {
 			base := k
 			// Kmiek.nl.+013+26205.key, handle .private or without extension: Kmiek.nl.+013+26205
-			if strings.HasSuffix(k, ".key") {
-				base = k[:len(k)-4]
-			}
+			/*
+				if strings.HasSuffix(k, ".key") {
+					base = k[:len(k)-4]
+				}
+			*/
 			if strings.HasSuffix(k, ".private") {
 				base = k[:len(k)-8]
 			}
@@ -163,6 +167,9 @@ func readRCertPair(private, cert string) (*RCertPair, error) {
 
 const certprefix = "_rhinecert."
 const dsumprefix = "_dsum."
+
+const proofprefix = "_dsaproof."
+const dsavalueprefix = "DSAPf "
 const txtcertvalueprefix = "rhineCert Ed25519 "
 
 func createCertRR(cert *x509.Certificate, origin string) dns.RR {
@@ -181,6 +188,51 @@ func createCertRR(cert *x509.Certificate, origin string) dns.RR {
 	certRR.Txt = split255TXT(txtcertvalueprefix + txtvalue)
 
 	return &certRR
+
+}
+
+func createDSAProofRR(mp *rhine.MPathProof, zone string) dns.RR {
+	dsaProofRR := dns.TXT{}
+	if zone == "." {
+		zone = ""
+	}
+	dsaProofRR.Hdr = dns.RR_Header{
+		Name:   proofprefix + zone,
+		Rrtype: dns.TypeTXT,
+		Class:  dns.ClassINET,
+		Ttl:    604800,
+	}
+
+	txtvalue, err := mp.SerializeMProofToString()
+	txtvalue = dsavalueprefix + txtvalue
+	if err != nil {
+		log.Error("can't create MPathProof RR, failed to serialize MpathProof to string")
+	}
+	dsaProofRR.Txt = split255TXT(txtvalue)
+
+	return &dsaProofRR
+
+}
+
+func createDSumRR(dsum *rhine.DSumNR, origin string) dns.RR {
+	dsumRR := dns.TXT{}
+	if origin == "." {
+		origin = ""
+	}
+	dsumRR.Hdr = dns.RR_Header{
+		Name:   dsumprefix + origin,
+		Rrtype: dns.TypeTXT,
+		Class:  dns.ClassINET,
+		Ttl:    604800,
+	}
+
+	txtvalue, err := dsum.SerializeDSumNRToString()
+	if err != nil {
+		log.Error("can't create DSum RR, failed to serialize dsum to string")
+	}
+	dsumRR.Txt = split255TXT(txtvalue)
+
+	return &dsumRR
 
 }
 

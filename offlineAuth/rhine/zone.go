@@ -57,6 +57,22 @@ func (al AuthorityLevel) CheckDOLSet() bool {
 	return 0b1&(al>>3) == 1
 }
 
+func CheckINDSetAlt(al AuthorityLevel) bool {
+	return 0b1&al == 1
+}
+
+func CheckEOISetAlt(al AuthorityLevel) bool {
+	return 0b1&(al>>1) == 1
+}
+
+func CheckTERSetAlt(al AuthorityLevel) bool {
+	return 0b1&(al>>2) == 1
+}
+
+func CheckDOLSetAlt(al AuthorityLevel) bool {
+	return 0b1&(al>>3) == 1
+}
+
 func (al AuthorityLevel) CheckLegalAuthLevel() bool {
 	// TODO: Check this again!
 	return true

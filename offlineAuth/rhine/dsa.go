@@ -63,3 +63,23 @@ func (d *DSum) GetDSumToBytes() ([]byte, error) {
 
 	return hasher.Sum(nil), nil
 }
+
+func (ds *DSum) SerializeDSumToString() (string, error) {
+	bytes, err := SerializeCBOR(ds)
+	if err != nil {
+		return "", err
+	}
+	var res string
+	res = EncodeBase64(bytes)
+	return res, nil
+}
+
+func DeserializeDSumFromString(in string) (*DSum, error) {
+	ds := &DSum{}
+	bytes, errdec := DecodeBase64(in)
+	if errdec != nil {
+		return ds, errdec
+	}
+	err := DeserializeCBOR(bytes, ds)
+	return ds, err
+}

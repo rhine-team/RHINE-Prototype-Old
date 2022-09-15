@@ -1,22 +1,30 @@
 .:10000 {
-    root ./zones
-    rhine root.db . {
-        scion off
+    root /home/ruben/RHINE-Prototype/onlineProtocol/testdata/nameserver/zones/
+    sign /home/ruben/RHINE-Prototype/onlineProtocol/testdata/nameserver/zones/root.db {
+        rcert file /home/ruben/RHINE-Prototype/onlineProtocol/testdata/nameserver/zones/rcerts/root
+        key file /home/ruben/RHINE-Prototype/onlineProtocol/testdata/nameserver/zones/keys/root
+        directory /home/ruben/RHINE-Prototype/onlineProtocol/testdata/nameserver/signed
     }
     log
 }
 com.:10001 {
-    root ./zones
-    rhine com.db com. {
-        scion off
+    root /home/ruben/RHINE-Prototype/onlineProtocol/testdata/nameserver/zones/
+    sign /home/ruben/RHINE-Prototype/onlineProtocol/testdata/nameserver/zones/com.db {
+        rcert file /home/ruben/RHINE-Prototype/onlineProtocol/testdata/nameserver/zones/rcerts/com
+        key file /home/ruben/RHINE-Prototype/onlineProtocol/testdata/nameserver/zones/keys/com
+        directory /home/ruben/RHINE-Prototype/onlineProtocol/testdata/nameserver/signed
     }
     log
 }
 
-rhine-test.com.:10002 {
-    root ./zones
-    rhine rhine-test.db rhine-test.com. {
-        scion off
+rhine-test.com.:10002 { 
+    root /home/ruben/RHINE-Prototype/onlineProtocol/testdata/nameserver/zones/
+    sign /home/ruben/RHINE-Prototype/onlineProtocol/testdata/nameserver/zones/rhine-test.db {
+        rcert file /home/ruben/RHINE-Prototype/onlineProtocol/testdata/nameserver/zones/rcerts/rhine-test.com
+        key file /home/ruben/RHINE-Prototype/onlineProtocol/testdata/nameserver/zones/keys/rhine-test.com
+        directory /home/ruben/RHINE-Prototype/onlineProtocol/testdata/nameserver/signed
     }
     log
 }
+
+

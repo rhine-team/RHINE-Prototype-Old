@@ -2,11 +2,17 @@ package resolver
 
 import (
 	"context"
-	"github.com/semihalev/sdns/response"
+	"crypto"
+	"io/ioutil"
+	logl "log"
 	"os"
 	"time"
 
+	"github.com/semihalev/sdns/response"
+
+	"github.com/google/certificate-transparency-go/x509"
 	"github.com/miekg/dns"
+	"github.com/rhine-team/RHINE-Prototype/offlineAuth/rhine"
 	"github.com/semihalev/log"
 	"github.com/semihalev/sdns/authcache"
 	"github.com/semihalev/sdns/cache"
@@ -20,6 +26,10 @@ type DNSHandler struct {
 	resolver *Resolver
 	roaCache *cache.Cache
 	cfg      *config.Config
+
+	// Extra RoA data
+	trustedRoots       *x509.CertPool // Pool of trusted CA certs
+	loggerNameToPubKey map[string]crypto.PublicKey
 }
 
 type ctxKey string
@@ -40,10 +50,40 @@ func New(cfg *config.Config) *DNSHandler {
 		cfg.Maxdepth = 30
 	}
 
+	trustedCAs := x509.NewCertPool()
+	// Read in trusted CA certs
+	// NOTE: cfg.RootCertsPath must end in /
+	files, err := ioutil.ReadDir(cfg.RootCertsPath)
+	//log.Println("Files for trust root: ", files)
+	if err != nil {
+		logl.Fatal("Error reading roots directory: ", err)
+	}
+	for _, file := range files {
+		pemfile, _ := ioutil.ReadFile(cfg.RootCertsPath + file.Name())
+
+		if trustedCAs.AppendCertsFromPEM(pemfile) {
+			logl.Println("Added the folloing root cert: " + file.Name() + " to trust root")
+		}
+	}
+
+	// Load logger public keys
+	loggerToKeys := make(map[string]crypto.PublicKey)
+	for i, loggername := range cfg.LoggerNames {
+		pk, err := rhine.PublicKeyFromFile(cfg.LoggerPubKeyPaths[i])
+		if err != nil {
+			logl.Fatal("Could not parse public key from file: " + cfg.LoggerPubKeyPaths[i])
+		}
+		loggerToKeys[loggername] = pk
+		logl.Println("Added public key of " + loggername + " to handler.")
+	}
+
 	return &DNSHandler{
 		resolver: NewResolver(cfg),
 		roaCache: cache.New(defaultCacheSize),
 		cfg:      cfg,
+
+		trustedRoots:       trustedCAs,
+		loggerNameToPubKey: loggerToKeys,
 	}
 }
 
@@ -142,7 +182,7 @@ func (h *DNSHandler) handle(ctx context.Context, req *dns.Msg) *dns.Msg {
 				log.Info(errNoROA.Error())
 				break
 			}
-			if !verifyRhineROA(roa, h.cfg.CACertificateFile) {
+			if !verifyRhineROA(roa, h) {
 				log.Info("The ROA verify failed!")
 				//return dnsutil.SetRcode(req, dns.RcodeServerFailure, do)
 				break
@@ -174,7 +214,7 @@ func (h *DNSHandler) handle(ctx context.Context, req *dns.Msg) *dns.Msg {
 						log.Info("Failed to get ROA, error", err, err.Error())
 						break
 					} else {
-						if !verifyRhineROA(RoA, h.cfg.CACertificateFile) {
+						if !verifyRhineROA(RoA, h) {
 							log.Info("The ROA verify failed!")
 							//return dnsutil.SetRcode(req, dns.RcodeServerFailure, do)
 							break

@@ -45,6 +45,7 @@ func (n *Nds) Sign(priv interface{}) error {
 	return nil
 }
 
+// TODO: Check this function again (inconsistent after changes)
 func (n *Nds) VerifyNDS(pubKey any) error {
 
 	encNDS, err := n.NdsToSignBytes()
@@ -65,7 +66,7 @@ func (n *Nds) VerifyNDS(pubKey any) error {
 			return errors.New("Signed data not matching with NDS content")
 		}
 	*/
-	newRhineSig := &RhineSig{Data: encNDS}
+	newRhineSig := &RhineSig{Data: encNDS, Signature: n.Signednds.Signature}
 
 	// Verify Signature
 	if !newRhineSig.Verify(pubKey) {

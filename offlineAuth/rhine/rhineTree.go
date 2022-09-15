@@ -244,3 +244,23 @@ func (p *MPathProof) VerifyMPathProof(roothash []byte, zname string) (bool, erro
 	// test if the root matches the given root
 	return bytes.Compare(roothash, hash) == 0, nil
 }
+
+func (mp *MPathProof) SerializeMProofToString() (string, error) {
+	bytes, err := SerializeCBOR(mp)
+	if err != nil {
+		return "", err
+	}
+	var res string
+	res = EncodeBase64(bytes)
+	return res, nil
+}
+
+func DeserializeMProofFromString(in string) (*MPathProof, error) {
+	mp := &MPathProof{}
+	bytes, errdec := DecodeBase64(in)
+	if errdec != nil {
+		return mp, errdec
+	}
+	err := DeserializeCBOR(bytes, mp)
+	return mp, err
+}

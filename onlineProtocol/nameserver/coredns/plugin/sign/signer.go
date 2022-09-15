@@ -3,6 +3,7 @@ package sign
 import (
 	"fmt"
 	"io"
+	lout "log"
 	"os"
 	"path/filepath"
 	"time"
@@ -12,6 +13,7 @@ import (
 	clog "github.com/coredns/coredns/plugin/pkg/log"
 
 	"github.com/miekg/dns"
+	"github.com/rhine-team/RHINE-Prototype/offlineAuth/rhine"
 )
 
 var log = clog.NewWithPlugin("sign")
@@ -112,6 +114,90 @@ func (s *Signer) Sign(now time.Time) (*file.Zone, error) {
 		return nil
 	})
 	z.Insert(createCertRR(s.rCertPair.Rcert, s.origin))
+
+	pwd, _ := os.Getwd()
+	lout.Println("Current dir: ", pwd)
+	lout.Println("Origin value ", s.origin)
+
+	parentToChild := make(map[string]string)
+	parentToChild["."] = "com."
+	parentToChild["com."] = "rhine-test.com."
+	parentToChild["rhine-test.com."] = "com."
+
+	// Inser DSAProofs
+	// TODO: DSA input
+
+	var parname string
+	if s.origin == "." {
+		parname = "root"
+	} else if s.origin == "com." {
+		parname = "com"
+	} else {
+		parname = "rhine-test.com"
+	}
+	parentCertPath := "../../testdata/nameserver/zones/rcerts/" + parname + "_cert.pem"
+	cert, errcert := rhine.LoadCertificatePEM(parentCertPath)
+	if errcert != nil {
+		log.Fatal("Error loading certificate: ", err)
+	}
+	pCert := rhine.ExtractTbsRCAndHash(cert, false)
+	expirationTime := time.Now().Add(time.Hour * 24 * 180)
+	aL := rhine.AuthorityLevel(0b0000)
+	content := []rhine.DSLeafContent{}
+	newDelegZone := rhine.DSLeafZone{
+		Zone:     parentToChild[s.origin],
+		Alv:      aL,
+		ZoneType: rhine.ExistingZone,
+	}
+	content = rhine.InsertNewDSLeafZone(content, newDelegZone)
+
+	newTree, errtree := rhine.NewTree(content)
+	if errtree != nil {
+		log.Fatal("Error tree making.")
+	}
+
+	dsa := &rhine.DSA{
+		Zone:     s.origin,
+		Alv:      aL,
+		Exp:      expirationTime,
+		Cert:     pCert,
+		Acc:      newTree,
+		Subzones: content,
+	}
+
+	for _, leafzone := range dsa.Subzones {
+		// Create a DSAProof of presence for every child
+		mp, resbool, err := dsa.GetMPathProofPresence(leafzone.Start.Zone)
+		if !resbool || err != nil {
+			fmt.Println("Error: Could not create a MProof. Error, then bool:", err, resbool)
+			continue
+		}
+		// Add result as a record
+		// TODO: look at zone name again
+		var namez string
+		if leafzone.Start.Zone == "" {
+			namez = "-infinity"
+		} else {
+			namez = leafzone.Start.Zone
+		}
+		z.Insert(createDSAProofRR(mp, namez))
+
+	}
+	// Insert DSum
+	// TODO: DSum input
+	var dsum *rhine.DSumNR
+	dsum = dsa.GetDSumNR([]string{"Logger1"})
+	// Sign
+	// Read in logger Privkey
+	privkeypath := "../../testdata/nameserver/zones/loggerkey/Logger1_priv.pem"
+	privkey, errkey := rhine.LoadPrivateKeyEd25519(privkeypath)
+	if errkey != nil {
+		fmt.Println("Error when reading logger priv key")
+		log.Fatal("Could not read privkey")
+	}
+	dsum.SignOne("Logger1", privkey)
+	z.Insert(createDSumRR(dsum, s.origin))
+
 	return z, err
 }
 

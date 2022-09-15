@@ -2,6 +2,7 @@ package rhine
 
 import (
 	"context"
+	"strings"
 
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin/file/rrutil"
@@ -135,6 +136,7 @@ func (z *Zone) Lookup(ctx context.Context, state request.Request, qname string, 
 					sigs := elem.Type(dns.TypeRRSIG)
 					sigs = rrutil.SubTypeSignature(sigs, dns.TypeDNAME)
 					dnamerrs = append(dnamerrs, sigs...)
+					log.Warning("Appended RRSIGs")
 				}
 
 				// The relevant DNAME RR should be included in the answer section,
@@ -198,13 +200,25 @@ func (z *Zone) Lookup(ctx context.Context, state request.Request, qname string, 
 		// Additional section processing for MX, SRV. Check response and see if any of the names are in bailiwick -
 		// if so add IP addresses to the additional section.
 		additional := z.additionalProcessing(rrs, appendRRSIGs)
+		log.Warning("Before append sigs")
 		if appendRRSIGs {
 			sigs := elem.Type(dns.TypeRRSIG)
 			sigs = rrutil.SubTypeSignature(sigs, qtype)
 			rrs = append(rrs, sigs...)
+			log.Warning("Appended RRSIGs after additional")
 		}
+		log.Warning("QTYPE: ", qtype)
 		if qtype == dns.TypeDNSKEY {
-			additional = z.rhineDelegationProcessing(additional)
+			n := dns.CompareDomainName(z.origin, qname)
+			nsplit := dns.SplitDomainName(qname)
+			var candidate string
+			if len(nsplit)-n > 0 {
+				candidate = dns.Fqdn(strings.Join(nsplit[len(nsplit)-n-1:], "."))
+			} else {
+				candidate = z.origin
+			}
+			log.Warning("DelegationProccessing")
+			additional = z.rhineDelegationProcessing(additional, candidate)
 		}
 		return rrs, ap.ns(appendRRSIGs), additional, Success
 	}
@@ -434,7 +448,7 @@ func (z *Zone) additionalProcessing(answer []dns.RR, do bool) (extra []dns.RR) {
 	return extra
 }
 
-func (z *Zone) rhineDelegationProcessing(rrs []dns.RR) []dns.RR {
+func (z *Zone) rhineDelegationProcessing(rrs []dns.RR, childzone string) []dns.RR {
 	tr := z.Tree
 	apex := z.origin
 	if z.origin == "." {
@@ -445,18 +459,36 @@ func (z *Zone) rhineDelegationProcessing(rrs []dns.RR) []dns.RR {
 		Rcert := rcert.Type(dns.TypeTXT)
 		rrs = append(rrs, Rcert...)
 	}
-	if rSig, ok := tr.Search("_dsp." + apex); ok {
-		log.Info("Found DSP")
-		RhineSig := rSig.Type(dns.TypeTXT)
-		rrs = append(rrs, RhineSig...)
+	// Search for dsum record
+	if dsum, ok := tr.Search("_dsum." + apex); ok {
+		log.Info("Found DSum")
+		Dsum := dsum.Type(dns.TypeTXT)
+		rrs = append(rrs, Dsum...)
 	}
-	//if zoneAuth, ok := tr.Search(z.origin); ok {
-	//	rrs = append(rrs, zoneAuth.Type(dns.TypeDNSKEY)...)
-	//
-	//	sigs := zoneAuth.Type(dns.TypeRRSIG)
-	//	sig := rrutil.SubTypeSignature(sigs, dns.TypeDNSKEY)
-	//	rrs = append(rrs, sig...)
-	//}
+	// Search for DSA Proof record
+	if dsaproof, ok := tr.Search("_dsaproof." + childzone); ok {
+		log.Info("Found DSAProof for: ", childzone)
+		Dsaproof := dsaproof.Type(dns.TypeTXT)
+		rrs = append(rrs, Dsaproof...)
+	} else {
+		log.Info("Did not find DSAProof for: ", childzone)
+	}
+	/*
+			if rSig, ok := tr.Search("_dsp." + apex); ok {
+				log.Info("Found DSP")
+				RhineSig := rSig.Type(dns.TypeTXT)
+				rrs = append(rrs, RhineSig...)
+			}
+
+		if zoneAuth, ok := tr.Search(z.origin); ok {
+			rrs = append(rrs, zoneAuth.Type(dns.TypeDNSKEY)...)
+
+			sigs := zoneAuth.Type(dns.TypeRRSIG)
+			sig := rrutil.SubTypeSignature(sigs, dns.TypeDNSKEY)
+			rrs = append(rrs, sig...)
+		}
+	*/
+	log.Info("Looks like :", rrs)
 
 	return rrs
 }

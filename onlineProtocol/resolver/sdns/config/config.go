@@ -55,6 +55,9 @@ type Config struct {
 	QnameMinLevel     int `toml:"qname_min_level"`
 	EmptyZones        []string
 	CACertificateFile string
+	LoggerPubKeyPaths []string
+	RootCertsPath     string
+	LoggerNames       []string
 	SCION             bool
 	Plugins           map[string]Plugin
 
@@ -224,6 +227,9 @@ qname_min_level = 5
 emptyzones = []
 
 cacertificatefile = "./testdata/certificate/CACert.pem"
+loggerpubkeypaths = []
+rootcertspath = ""
+loggernames = []
 
 scion = false
 

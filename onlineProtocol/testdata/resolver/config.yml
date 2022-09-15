@@ -137,6 +137,9 @@ qname_min_level = 5
 emptyzones = []
   
 cacertificatefile = "./certificates/CACert.pem"
+loggerpubkeypaths = ["./pubkeys/Logger1.pem"]
+rootcertspath = "./certificates/"
+loggernames = ["Logger1"]
 
 scion = false
 # You can add your own plugins to sdns. The plugin order is very important. 
