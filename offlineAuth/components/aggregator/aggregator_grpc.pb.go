@@ -24,6 +24,9 @@ const _ = grpc.SupportPackageIsVersion7
 type AggServiceClient interface {
 	DSRetrieval(ctx context.Context, in *RetrieveDSALogRequest, opts ...grpc.CallOption) (*RetrieveDSALogResponse, error)
 	SubmitNDS(ctx context.Context, in *SubmitNDSRequest, opts ...grpc.CallOption) (*SubmitNDSResponse, error)
+	PreLogging(ctx context.Context, in *PreLoggingRequest, opts ...grpc.CallOption) (*PreLoggingResponse, error)
+	Logging(ctx context.Context, in *LoggingRequest, opts ...grpc.CallOption) (*LoggingResponse, error)
+	DSProofRet(ctx context.Context, in *DSProofRetRequest, opts ...grpc.CallOption) (*DSProofRetResponse, error)
 }
 
 type aggServiceClient struct {
@@ -52,12 +55,42 @@ func (c *aggServiceClient) SubmitNDS(ctx context.Context, in *SubmitNDSRequest, 
 	return out, nil
 }
 
+func (c *aggServiceClient) PreLogging(ctx context.Context, in *PreLoggingRequest, opts ...grpc.CallOption) (*PreLoggingResponse, error) {
+	out := new(PreLoggingResponse)
+	err := c.cc.Invoke(ctx, "/aggregator.AggService/PreLogging", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aggServiceClient) Logging(ctx context.Context, in *LoggingRequest, opts ...grpc.CallOption) (*LoggingResponse, error) {
+	out := new(LoggingResponse)
+	err := c.cc.Invoke(ctx, "/aggregator.AggService/Logging", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aggServiceClient) DSProofRet(ctx context.Context, in *DSProofRetRequest, opts ...grpc.CallOption) (*DSProofRetResponse, error) {
+	out := new(DSProofRetResponse)
+	err := c.cc.Invoke(ctx, "/aggregator.AggService/DSProofRet", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AggServiceServer is the server API for AggService service.
 // All implementations must embed UnimplementedAggServiceServer
 // for forward compatibility
 type AggServiceServer interface {
 	DSRetrieval(context.Context, *RetrieveDSALogRequest) (*RetrieveDSALogResponse, error)
 	SubmitNDS(context.Context, *SubmitNDSRequest) (*SubmitNDSResponse, error)
+	PreLogging(context.Context, *PreLoggingRequest) (*PreLoggingResponse, error)
+	Logging(context.Context, *LoggingRequest) (*LoggingResponse, error)
+	DSProofRet(context.Context, *DSProofRetRequest) (*DSProofRetResponse, error)
 	mustEmbedUnimplementedAggServiceServer()
 }
 
@@ -70,6 +103,15 @@ func (UnimplementedAggServiceServer) DSRetrieval(context.Context, *RetrieveDSALo
 }
 func (UnimplementedAggServiceServer) SubmitNDS(context.Context, *SubmitNDSRequest) (*SubmitNDSResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SubmitNDS not implemented")
+}
+func (UnimplementedAggServiceServer) PreLogging(context.Context, *PreLoggingRequest) (*PreLoggingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PreLogging not implemented")
+}
+func (UnimplementedAggServiceServer) Logging(context.Context, *LoggingRequest) (*LoggingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Logging not implemented")
+}
+func (UnimplementedAggServiceServer) DSProofRet(context.Context, *DSProofRetRequest) (*DSProofRetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DSProofRet not implemented")
 }
 func (UnimplementedAggServiceServer) mustEmbedUnimplementedAggServiceServer() {}
 
@@ -120,6 +162,60 @@ func _AggService_SubmitNDS_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AggService_PreLogging_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PreLoggingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AggServiceServer).PreLogging(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/aggregator.AggService/PreLogging",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AggServiceServer).PreLogging(ctx, req.(*PreLoggingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AggService_Logging_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LoggingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AggServiceServer).Logging(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/aggregator.AggService/Logging",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AggServiceServer).Logging(ctx, req.(*LoggingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AggService_DSProofRet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DSProofRetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AggServiceServer).DSProofRet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/aggregator.AggService/DSProofRet",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AggServiceServer).DSProofRet(ctx, req.(*DSProofRetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AggService_ServiceDesc is the grpc.ServiceDesc for AggService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -134,6 +230,18 @@ var AggService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SubmitNDS",
 			Handler:    _AggService_SubmitNDS_Handler,
+		},
+		{
+			MethodName: "PreLogging",
+			Handler:    _AggService_PreLogging_Handler,
+		},
+		{
+			MethodName: "Logging",
+			Handler:    _AggService_Logging_Handler,
+		},
+		{
+			MethodName: "DSProofRet",
+			Handler:    _AggService_DSProofRet_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

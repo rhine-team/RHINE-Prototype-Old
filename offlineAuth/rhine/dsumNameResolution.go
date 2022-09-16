@@ -29,7 +29,11 @@ func (dsa *DSA) GetDSumNR(ll []string) *DSumNR {
 }
 
 func (d *DSumNR) SignOne(loggername string, privkey any) error {
+	// Temp save signatures
+	temp := d.Signatures
+	d.Signatures = nil
 	byt, err := d.GetDSumNRToBytes()
+
 	if err != nil {
 		return err
 	}
@@ -40,6 +44,7 @@ func (d *DSumNR) SignOne(loggername string, privkey any) error {
 	if err != nil {
 		return err
 	}
+	d.Signatures = temp
 
 	for i, v := range d.LoggerList {
 		if v == loggername {
@@ -57,15 +62,16 @@ func (d *DSumNR) VerifyOne(loggername string, pubkey any) error {
 			ind = i
 		}
 	}
+	rsig := RhineSig{
+		Signature: d.Signatures[ind],
+	}
+	d.Signatures = nil
 
 	byt, err := d.GetDSumNRToBytes()
 	if err != nil {
 		return err
 	}
-	rsig := RhineSig{
-		Data:      byt,
-		Signature: d.Signatures[ind],
-	}
+	rsig.Data = byt
 
 	if !rsig.Verify(pubkey) {
 		return errors.New("DSumNR failed verification of signature for: " + loggername)

@@ -109,7 +109,7 @@ var RequestDelegCmd = &cobra.Command{
 		nzm := rhine.NewZoneManager(cof)
 
 		// Make a new Csr
-		csr, errcsr := nzm.CreateSignedCSR(reqAuthorityLevel, expirationTime, nzm.Ca, nzm.LogList, revocationBit)
+		csr, errcsr := nzm.CreateSignedCSR(reqAuthorityLevel, expirationTime, nzm.Ca, nzm.AggList, revocationBit)
 		if errcsr != nil {
 			log.Fatalf("Creation of the csr failed! ", errcsr)
 			return

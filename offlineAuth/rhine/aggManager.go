@@ -165,6 +165,22 @@ func NewAggManager(config AggConfig) *AggManager {
 	return &myagg
 }
 
+func (lm *AggManager) DSProof(pzone string, czone string) (Dsp, error) {
+	dsp, err := lm.Dsalog.DSProofRet(pzone, czone, ProofOfAbsence, lm.DB)
+	if err != nil {
+		return Dsp{}, err
+	}
+
+	// Sign the DSProof
+	(&dsp).Sign(lm.privkey)
+
+	// Remove unneeded data
+	(&dsp).Sig.Data = nil
+
+	//log.Printf("DSP in LogManager after generation %+v", dsp)
+	return dsp, nil
+}
+
 func (a *AggManager) AcceptNDSAndStore(n *Nds) (*Confirm, error) {
 	// Construct a DSum out of Nds
 	dsum := n.ConstructDSum()

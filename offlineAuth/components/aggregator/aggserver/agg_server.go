@@ -38,6 +38,30 @@ func (s *AggServer) DSRetrieval(ctx context.Context, in *pf.RetrieveDSALogReques
 
 }
 
+func (s *AggServer) DSProofRet(ctx context.Context, in *pf.DSProofRetRequest) (*pf.DSProofRetResponse, error) {
+	res := &pf.DSProofRetResponse{}
+
+	log.Printf("Received a DSProofRet request: %+v", in)
+
+	dsp, dsperr := s.AggManager.DSProof(in.Parentzone, in.Childzone)
+	if dsperr != nil {
+		return res, dsperr
+	}
+
+	// Encode and send
+	//dspseri, err := rhine.SerializeStructure[rhine.Dsp](dsp)
+	dspseri, err := rhine.SerializeCBOR(dsp)
+	//log.Printf("DSP, serialized: %+v", dsp)
+
+	if err != nil {
+		return res, err
+	}
+
+	res = &pf.DSProofRetResponse{DSPBytes: dspseri}
+	return res, nil
+
+}
+
 func (s *AggServer) SubmitNDS(ctx context.Context, in *pf.SubmitNDSRequest) (*pf.SubmitNDSResponse, error) {
 	if measureT && ft1 == nil {
 		ft1, _ = os.Create("AggTimeStats" + ".csv")

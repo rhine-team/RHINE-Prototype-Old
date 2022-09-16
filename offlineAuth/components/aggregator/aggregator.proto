@@ -9,6 +9,37 @@ service AggService {
   rpc DSRetrieval (RetrieveDSALogRequest) returns (RetrieveDSALogResponse) {}
 
   rpc SubmitNDS (SubmitNDSRequest) returns (SubmitNDSResponse) {}
+
+  rpc PreLogging (PreLoggingRequest) returns (PreLoggingResponse) {}
+
+  rpc Logging (LoggingRequest) returns (LoggingResponse) {}
+
+  rpc DSProofRet (DSProofRetRequest) returns (DSProofRetResponse) {}
+}
+
+message PreLoggingRequest {
+	bytes Prl = 1;
+}
+
+message PreLoggingResponse {
+	bytes Att = 1;
+}
+
+message LoggingRequest {
+	bytes Lreq = 1;
+}
+
+message LoggingResponse {
+	bytes LogConf = 1;
+}
+
+message DSProofRetRequest {
+	string Parentzone = 1;
+	string Childzone = 2;
+}
+
+message DSProofRetResponse {
+	bytes DSPBytes = 1;
 }
 
 message Lwit {

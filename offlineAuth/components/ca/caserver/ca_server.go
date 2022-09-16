@@ -103,9 +103,9 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 	}
 
 	// Make dspRequest
-	dspRequest := &logp.DSProofRetRequest{Childzone: psr.ChildZone, Parentzone: psr.ParentZone}
+	dspRequest := &agg.DSProofRetRequest{Childzone: psr.ChildZone, Parentzone: psr.ParentZone}
 
-	clientsLogger := make([]logp.LogServiceClient, len(psr.GetLogs()))
+	clientsLogger := make([]agg.AggServiceClient, len(psr.GetLogs()))
 	// Make connections for all designated loggers
 
 	// Use error group to fail goroutines if network issue or dsp does not validate
@@ -118,7 +118,7 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		// Create connections and clients, remember to reuse later
 		conn := rhine.GetGRPCConn(logger)
 		defer conn.Close()
-		clientsLogger[i] = logp.NewLogServiceClient(conn)
+		clientsLogger[i] = agg.NewAggServiceClient(conn)
 
 		errGroup.Go(func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -146,7 +146,7 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 			// Check if proof is correct
 			// Check if pcert matches dsp
 			// Check ALC and ALP compatibility
-			if !(dsp).Verify(s.Ca.LogMap[logger].Pubkey, psr.ChildZone, rcertp, psr.GetAlFromCSR()) {
+			if !(dsp).Verify(s.Ca.AggMap[logger].Pubkey, psr.ChildZone, rcertp, psr.GetAlFromCSR()) {
 				log.Println("Verification of dsp failed")
 				//noFailureChannel <- false
 				return errors.New("Verification of DSP and check against it failed!")
@@ -167,23 +167,24 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 
 	// Create PreRC and NDS
 	preRC := s.Ca.CreatePoisonedCert(psr)
-	nds, errnds := s.Ca.CreateNDS(psr, preRC)
-	if errnds != nil {
-		return res, errnds
+
+	/*
+		nds, errnds := s.Ca.CreateNDS(psr, preRC)
+		if errnds != nil {
+			return res, errnds
+		}
+		log.Printf("Constructed NDS looks like this: %+v", nds)
+	*/
+	prl, errprl := s.Ca.CreatePRL(psr, preRC)
+	if errprl != nil {
+		return res, errprl
 	}
-	log.Printf("Constructed NDS looks like this: %+v", nds)
 
 	// Reuse earlier connection
 
-	ndsBytes, ndsBerr := nds.NdsToBytes()
-	if ndsBerr != nil {
-		return res, ndsBerr
-	}
-
-	// Construct log ACSR
-	acsrLog := &logp.RhineSig{
-		Data: in.Acsr.Data,
-		Sig:  in.Acsr.Sig,
+	prlbytes, perr := prl.PrlToBytes()
+	if perr != nil {
+		return res, perr
 	}
 
 	if measureT {
@@ -199,33 +200,30 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 	// Use error group to fail goroutines if network issue or dsp does not validate
 	errGroup = new(errgroup.Group)
 
-	LogWitnessList := make([]rhine.Lwit, len(psr.GetLogs()))
-	logWitnessReturns := make(chan rhine.Lwit, len(psr.GetLogs()))
+	LogAttReturns := make(chan rhine.Confirm, len(psr.GetLogs()))
+	AttList := make([]rhine.Confirm, len(psr.GetLogs()))
+
 	for i, _ := range psr.GetLogs() {
 		i := i
 		errGroup.Go(func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 
-			rDemandLog, errDL := clientsLogger[i].DemandLogging(ctx, &logp.DemandLoggingRequest{Acsr: acsrLog, ParentRcert: in.Rcertp, ChildPreRC: preRC.Raw, Nds: ndsBytes, Rid: in.Rid})
+			rDemandLog, errDL := clientsLogger[i].DemandLogging(ctx, &agg.PreLoggingRequest{Prl: prlbytes})
 			if errDL != nil {
-				log.Printf("No good response from log for DemandLogging: %v", errDL)
+				log.Printf("No good response from log for PreLoggingReq: %v", errDL)
 				return errDL
 			}
 
 			//log.Printf("Received res for Demand Logging %+v ", rDemandLog)
 			log.Printf("Received response for DemandLogging ")
 
-			// Collect Lwits
-			var newLwit rhine.Lwit
-			newLwit = rhine.Lwit{
-				Signature: rDemandLog.LogWitness.Sig,
-				NdsBytes:  rDemandLog.LogWitness.NdsHash,
-				Log:       &rhine.Log{Name: rDemandLog.LogWitness.Log},
-				LogList:   rDemandLog.LogWitness.DesignatedLogs,
-			}
 			//LogWitnessList = append(LogWitnessList, newLwit)
-			logWitnessReturns <- newLwit
+			resp, errresp := rhine.TransportBytesToConfirm(rDemandLog.Att)
+			if errresp != nil {
+				return errresp
+			}
+			LogAttReturns <- resp
 			return nil
 		})
 	}
@@ -239,176 +237,58 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		measureTimes = time.Now()
 	}
 
-	// Collect the Lwits from the routines
+	// Collect the Atts from the routines
 	for i := range psr.GetLogs() {
 		l := <-logWitnessReturns
-		LogWitnessList[i] = l
+		AttList[i] = l
 	}
 
-	// Step 11: Verify Lwits
-	if !rhine.VerifyLwitSlice(LogWitnessList, s.Ca.LogMap) {
-		return res, errors.New("One of the LogWitness failed verification!")
-	}
-	// Match Lwit and NDS
-	if !nds.MatchWithLwits(LogWitnessList) {
-		return res, errors.New("Lwit did not match with NDS")
+	// Verify LogAttest and match with prl
+	if !VerifyAggConfirmSlice(AttList, s.Ca.AggMap) {
+		return res, errors.New("Failed to verify at least one of the attestations")
 	}
 
-	log.Println("LOG_WITNESS list verified and matched with NDS")
+	log.Println("ATTS list verified")
 
-	// Construct message for Aggregator containing list of log witnesses and NDS
-	var lwitAggList []*agg.Lwit
-	for _, lwi := range LogWitnessList {
-		lw := &agg.Lwit{
-			DesignatedLogs: lwi.LogList,
-			Log:            lwi.Log.Name,
-			NdsHash:        lwi.NdsBytes,
-			Sig:            lwi.Signature,
-		}
-
-		lwitAggList = append(lwitAggList, lw)
-	}
-
-	aggMsg := &agg.SubmitNDSRequest{
-		Nds:           ndsBytes,
-		Lwits:         lwitAggList,
-		Rid:           in.Rid,
-		Acsrpayload:   acsr.Data,
-		Acsrsignature: acsr.Signature,
-		Rcertp:        rcertp.Raw,
-	}
+	//TODO
 
 	if measureT {
 		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
-	}
-
-	// Send all allgregs the log witnesses
-	// Use error group to fail goroutines if network issue or dsp does not validate
-	errGroup = new(errgroup.Group)
-
-	clientsAggreg := make([]agg.AggServiceClient, len(nds.Nds.Agg))
-	aggConfirmList := make([]rhine.Confirm, len(nds.Nds.Agg))
-	aggConfirmListBytes := make([][]byte, len(nds.Nds.Agg))
-	aggConfirmReturns := make(chan ConfAndBytes, len(nds.Nds.Agg))
-	// Make connections for all designated aggregators
-	for i, aggregat := range nds.Nds.Agg {
-		i := i
-		aggregat := aggregat
-		connAgg := rhine.GetGRPCConn(aggregat)
-		defer connAgg.Close()
-		cAgg := agg.NewAggServiceClient(connAgg)
-		clientsAggreg[i] = cAgg
-		errGroup.Go(func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-
-			rAgg, err := cAgg.SubmitNDS(ctx, aggMsg)
-			if err != nil {
-				return err
-			}
-
-			log.Println("Response received by aggregator for SubmitNDS")
-
-			// Collect received confirms
-
-			aggConf, errTranspConf := rhine.TransportBytesToConfirm(rAgg.Acfmg)
-			if errTranspConf != nil {
-				log.Println("Transport bytes to confirm failed: ", errTranspConf)
-				return errTranspConf
-			}
-
-			aggConfirmReturns <- ConfAndBytes{conf: *aggConf, bytes: rAgg.Acfmg}
-
-			return nil
-		})
-	}
-
-	// Wait for aggregator responses
-	if err := errGroup.Wait(); err != nil {
-		return res, err
 	}
 
 	if measureT {
 		measureTimes = time.Now()
 	}
 
-	// Collect the Lwits from the routines
-	for i := range nds.Nds.Agg {
-		aCR := <-aggConfirmReturns
-		aggConfirmList[i] = aCR.conf
-		aggConfirmListBytes[i] = aCR.bytes
-	}
-
-	// Check Signatures on Agg_confirms and
-	// Check match between nds and dsum
-
-	// Check match of confirms with nds
-	if !nds.MatchWithConfirm(aggConfirmList) {
-		return res, errors.New("One of the AggConfirms did not match the NDS")
-	}
-	// Check if Confirms are correctly signed
-	if !rhine.VerifyAggConfirmSlice(aggConfirmList, s.Ca.AggMap) {
-		return res, errors.New("An AggConfirm was not correctly signed")
-	}
-
-	log.Println("CA: All AggConfirms checked with success.")
-
-	// Communicate back to the log and hand in the AggConfirms
+	// Communicate back to the log
 	// Connection already established :
 
 	if measureT {
 		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
 	}
 
-	// Collect LogConfirms
-	logConfirmList := make([]rhine.Confirm, len(psr.GetLogs()))
-	logConfirmListBytes := make([][]byte, len(psr.GetLogs()))
-	SCTS := make([][]byte, len(psr.GetLogs()))
-	pubKeyInOrder := []any{}
-	sctAndLConf := make(chan SCTandLConf, len(psr.GetLogs()))
-	for i, _ := range psr.GetLogs() {
-		i := i
-		errGroup.Go(func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-
-			rSubAcfm, errSubAcfm := clientsLogger[i].SubmitACFM(ctx, &logp.SubmitACFMRequest{Acfms: aggConfirmListBytes, Rid: in.Rid})
-			if errSubAcfm != nil {
-				return errSubAcfm
-			}
-
-			logConf, errTranspConfL := rhine.TransportBytesToConfirm(rSubAcfm.Lcfm)
-			if errTranspConfL != nil {
-				return errTranspConfL
-			}
-
-			sctnlconf := SCTandLConf{
-				sct:        rSubAcfm.SCT,
-				lconf:      *logConf,
-				lconfbytes: rSubAcfm.Lcfm,
-			}
-			sctAndLConf <- sctnlconf
-			return nil
-		})
-	}
-
-	// Wait for loggers responses
-	if err := errGroup.Wait(); err != nil {
-		return res, err
-	}
-
 	if measureT {
 		measureTimes = time.Now()
 	}
 
-	// Collect the SCTS and Confirms from the routines
-	for i := range psr.GetLogs() {
-		snl := <-sctAndLConf
-		// Collect Confirms
-		logConfirmList[i] = snl.lconf
-		logConfirmListBytes[i] = snl.lconfbytes
-		SCTS[i] = snl.sct
-		pubKeyInOrder = append(pubKeyInOrder, s.Ca.LogMap[snl.lconf.EntityName].Pubkey)
+	Lreqbytes, errlreq := 
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	rlogres, errdlog := clientsLogger[0].Logging(ctx, &agg.LoggingRequest{Lreq: lreqbytes})
+	if errdlog != nil {
+		log.Printf("Logging request failed!", errdlog)
+		return errdlog
+	}
+
+	//log.Printf("Received res for Demand Logging %+v ", rDemandLog)
+	log.Printf("Received response for DemandLogging ")
+
+	//LogWitnessList = append(LogWitnessList, newLwit)
+	resp, errresp := rhine.TransportBytesToConfirm(rDemandLog.Att)
+	if errresp != nil {
+		return errresp
 	}
 
 	// Check if LogConfirms are correctly signed

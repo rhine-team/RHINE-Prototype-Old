@@ -2,7 +2,7 @@ GO ?= go
 TESTFOLDER := $(shell $(GO) list ./...)
 BIN = sdns
 
-all: generate test build tidy
+all: generate build tidy
 
 .PHONY: test
 test:

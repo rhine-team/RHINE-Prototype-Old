@@ -238,6 +238,21 @@ func (myca *Ca) CreateNDS(psr *Psr, certC *x509.Certificate) (*Nds, error) {
 	return nds, nil
 }
 
+func (myca *Ca) CreatePRL(psr *Psr, certC *x509.Certificate) (*Prl, error) {
+
+	prl := &Prl{
+		Psr:     psr,
+		Precert: certC.Raw,
+	}
+
+	err := prl.SignPrl(myca.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return prl, nil
+}
+
 // sct is a list of TLS-marshalled SCTs
 func (myca *Ca) IssueRHINECert(precert *x509.Certificate, psr *Psr, sct [][]byte) *x509.Certificate {
 	serializedSCTList := []x509.SerializedSCT{}

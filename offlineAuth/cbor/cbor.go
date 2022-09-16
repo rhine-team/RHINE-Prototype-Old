@@ -14,7 +14,8 @@ var (
 )
 
 func init() {
-	optsEnc := cbor.CanonicalEncOptions()
+	//optsEnc := cbor.CanonicalEncOptions()
+	optsEnc := cbor.CoreDetEncOptions()
 	optsDec := cbor.DecOptions{}
 
 	EMode, _ = optsEnc.EncMode()
