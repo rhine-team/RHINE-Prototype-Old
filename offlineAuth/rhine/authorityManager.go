@@ -166,8 +166,8 @@ func NewCA(config CaConfig) *Ca {
 
 func (myca *Ca) VerifyNewDelegationRequest(rcertp *x509.Certificate, acsr *RhineSig) (bool, error, *Psr) {
 	psr := Psr{
-		psignedcsr: *acsr,
-		pcert:      rcertp,
+		Psignedcsr: *acsr,
+		Pcert:      rcertp,
 	}
 
 	// Check that ACSR was signed by Parent and
@@ -186,11 +186,11 @@ func (myca *Ca) CreatePoisonedCert(psr *Psr) *x509.Certificate {
 		// TODO real serial number
 		SerialNumber: big.NewInt(897),
 		Issuer:       myca.CACertificate.Issuer,
-		Subject:      psr.csr.csr.Subject,
+		Subject:      psr.Csr.Csr.Subject,
 		NotBefore:    time.Now(),
-		NotAfter:     psr.csr.exp,
+		NotAfter:     psr.Csr.Exp,
 		KeyUsage:     x509.KeyUsageDigitalSignature,
-		DNSNames:     []string{psr.csr.csr.DNSNames[0]},
+		DNSNames:     []string{psr.Csr.Csr.DNSNames[0]},
 	}
 
 	certTemplate.ExtraExtensions = append(certTemplate.Extensions, pkix.Extension{
@@ -199,7 +199,7 @@ func (myca *Ca) CreatePoisonedCert(psr *Psr) *x509.Certificate {
 		Value:    asn1.NullBytes,
 	})
 
-	certbytes, _ := x509.CreateCertificate(rand.Reader, &certTemplate, myca.CACertificate, psr.csr.csr.PublicKey, myca.PrivateKey)
+	certbytes, _ := x509.CreateCertificate(rand.Reader, &certTemplate, myca.CACertificate, psr.Csr.Csr.PublicKey, myca.PrivateKey)
 
 	cert, _ := x509.ParseCertificate(certbytes)
 
@@ -220,10 +220,10 @@ func (myca *Ca) CreateNDS(psr *Psr, certC *x509.Certificate) (*Nds, error) {
 	ndssign := NdsToSign{
 		//Log:     logl,
 		Agg:     aggl,
-		Zone:    psr.csr.zone,
-		Al:      psr.csr.al,
+		Zone:    psr.Csr.Zone,
+		Al:      psr.Csr.Al,
 		TbsCert: ExtractTbsRCAndHash(certC, false),
-		Exp:     psr.csr.exp,
+		Exp:     psr.Csr.Exp,
 	}
 
 	nds := &Nds{
@@ -254,11 +254,13 @@ func (myca *Ca) CreatePRL(psr *Psr, certC *x509.Certificate) (*Prl, error) {
 }
 
 // sct is a list of TLS-marshalled SCTs
-func (myca *Ca) IssueRHINECert(precert *x509.Certificate, psr *Psr, sct [][]byte) *x509.Certificate {
-	serializedSCTList := []x509.SerializedSCT{}
-	for _, v := range sct {
-		serializedSCTList = append(serializedSCTList, x509.SerializedSCT{Val: v})
-	}
+func (myca *Ca) IssueRHINECert(precert *x509.Certificate, psr *Psr) *x509.Certificate { //sct [][]byte
+	/*
+		serializedSCTList := []x509.SerializedSCT{}
+		for _, v := range sct {
+			serializedSCTList = append(serializedSCTList, x509.SerializedSCT{Val: v})
+		}
+	*/
 
 	certTemplate := x509.Certificate{
 		// TODO real serial number
@@ -270,9 +272,11 @@ func (myca *Ca) IssueRHINECert(precert *x509.Certificate, psr *Psr, sct [][]byte
 		KeyUsage:     precert.KeyUsage,
 		DNSNames:     precert.DNSNames,
 
-		SCTList: x509.SignedCertificateTimestampList{
-			SCTList: serializedSCTList,
-		},
+		/*
+			SCTList: x509.SignedCertificateTimestampList{
+				SCTList: serializedSCTList,
+			},
+		*/
 	}
 
 	/*
@@ -281,7 +285,7 @@ func (myca *Ca) IssueRHINECert(precert *x509.Certificate, psr *Psr, sct [][]byte
 		certTemplate.ExtraExtensions = append(certTemplate.ExtraExtensions, rhinext)
 	*/
 
-	certbytes, err := x509.CreateCertificate(rand.Reader, &certTemplate, myca.CACertificate, psr.csr.csr.PublicKey, myca.PrivateKey)
+	certbytes, err := x509.CreateCertificate(rand.Reader, &certTemplate, myca.CACertificate, psr.Csr.Csr.PublicKey, myca.PrivateKey)
 	if err != nil {
 		log.Println("CA: Could not create certificate: ", err)
 	}

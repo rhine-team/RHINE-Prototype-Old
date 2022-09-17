@@ -8,10 +8,10 @@ import (
 )
 
 type Psr struct {
-	csr        *Csr
-	psignedcsr RhineSig
-	pcert      *x509.Certificate
-	dsp        *Dsp
+	Csr        *Csr
+	Psignedcsr RhineSig
+	Pcert      *x509.Certificate
+	Dsp        *Dsp
 
 	ChildZone  string
 	ParentZone string
@@ -19,8 +19,8 @@ type Psr struct {
 
 func CreatePsr(pcert *x509.Certificate, rsig *RhineSig) *Psr {
 	psr := Psr{
-		psignedcsr: *rsig,
-		pcert:      pcert,
+		Psignedcsr: *rsig,
+		Pcert:      pcert,
 	}
 	return &psr
 }
@@ -33,22 +33,22 @@ func (psr *Psr) Verify(roots *x509.CertPool) error {
 	// verify psignature on csr
 
 	var err error
-	psr.csr, err = VerifyCSR(psr.psignedcsr.Data)
+	psr.Csr, err = VerifyCSR(psr.Psignedcsr.Data)
 	if err != nil {
 		log.Println("CSR verification failed")
 		return err
 	}
 
-	pzone := GetParentZone(psr.csr.zone.Name)
+	pzone := GetParentZone(psr.Csr.Zone.Name)
 	psr.ParentZone = pzone
-	psr.ChildZone = psr.csr.zone.Name
+	psr.ChildZone = psr.Csr.Zone.Name
 
 	// Verify cert and names
-	if err := CheckRCertNameAndValid(psr.pcert, pzone, roots); err != nil {
+	if err := CheckRCertNameAndValid(psr.Pcert, pzone, roots); err != nil {
 		return err
 	}
 
-	if ok := psr.psignedcsr.Verify(psr.pcert.PublicKey); !ok {
+	if ok := psr.Psignedcsr.Verify(psr.Pcert.PublicKey); !ok {
 		log.Println("ACSR not valid!")
 		return errors.New("Rhinesig invalid")
 	}
@@ -57,23 +57,23 @@ func (psr *Psr) Verify(roots *x509.CertPool) error {
 }
 
 func (psr *Psr) GetZones() (string, string) {
-	return GetParentZone(psr.csr.zone.Name), psr.csr.zone.Name
+	return GetParentZone(psr.Csr.Zone.Name), psr.Csr.Zone.Name
 }
 
 func (psr *Psr) GetRhineSig() RhineSig {
-	return psr.psignedcsr
+	return psr.Psignedcsr
 }
 
 func (psr *Psr) GetLogs() []string {
-	return psr.csr.logs
+	return psr.Csr.Logs
 }
 
 func (psr *Psr) GetCsr() *Csr {
-	return psr.csr
+	return psr.Csr
 }
 
 func (psr *Psr) GetAlFromCSR() AuthorityLevel {
-	return psr.csr.al
+	return psr.Csr.Al
 }
 
 func CheckRCertNameAndValid(pcert *x509.Certificate, pzone string, roots *x509.CertPool) error {

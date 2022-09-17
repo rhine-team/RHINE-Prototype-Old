@@ -165,3 +165,101 @@ func (s *AggServer) SubmitNDS(ctx context.Context, in *pf.SubmitNDSRequest) (*pf
 
 	return res, nil
 }
+
+func (s *AggServer) PreLogging(ctx context.Context, in *pf.PreLoggingRequest) (*pf.PreLoggingResponse, error) {
+	if measureT && ft1 == nil {
+		ft1, _ = os.Create("AggTimeStats" + ".csv")
+	}
+	var measureTimes time.Time
+	var elapsedTimes int64
+	if measureT {
+		elapsedTimes = 0
+		measureTimes = time.Now()
+	}
+	res := &pf.PreLoggingResponse{}
+
+	//log.Printf("Logging service called with RID: %s\n", rhine.EncodeBase64(in.Rid))
+	//log.Printf("Received request %+v", in)
+
+	prl, err := rhine.PrlFromBytes(in.Prl)
+	if err != nil {
+		return res, err
+	}
+
+	//TODO Matches
+	preRC, _ := x509.ParseCertificate(prl.Precert)
+	nds, errnds := s.AggManager.CreateNDS(prl.Psr, preRC)
+	if errnds != nil {
+		return res, errnds
+	}
+	// TODO local check
+
+	att, errconf := rhine.CreateConfirm(0, nds, s.AggManager.Agg.Name, rhine.DSum{}, s.AggManager.GetPrivKey())
+	if errconf != nil {
+		return res, errconf
+	}
+	attbyte, errbyt := (att).ConfirmToTransportBytes()
+	if errbyt != nil {
+		return res, errbyt
+	}
+
+	res = &pf.PreLoggingResponse{
+		Att: attbyte,
+	}
+
+	//log.Printf("SubmitNDSResponse sent for RID: %s\n", rhine.EncodeBase64(in.Rid))
+
+	if measureT {
+		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
+		ft1.WriteString(fmt.Sprintf("%d\n", elapsedTimes))
+		ft1.Sync()
+	}
+
+	return res, nil
+}
+
+func (s *AggServer) Logging(ctx context.Context, in *pf.LoggingRequest) (*pf.LoggingResponse, error) {
+	if measureT && ft1 == nil {
+		ft1, _ = os.Create("AggTimeStats" + ".csv")
+	}
+	var measureTimes time.Time
+	var elapsedTimes int64
+	if measureT {
+		elapsedTimes = 0
+		measureTimes = time.Now()
+	}
+	res := &pf.LoggingResponse{}
+
+	//log.Printf("Logging service called with RID: %s\n", rhine.EncodeBase64(in.Rid))
+	//log.Printf("Received request %+v", in)
+
+	lreq, err := rhine.LreqFromBytes(in.Lreq)
+	if err != nil {
+		return res, err
+	}
+
+	//TODO Matches
+
+	att, errconf := rhine.CreateConfirm(0, lreq.Nds, s.AggManager.Agg.Name, rhine.DSum{}, s.AggManager.GetPrivKey())
+	if errconf != nil {
+		return res, errconf
+	}
+	attbyte, errbyt := (att).ConfirmToTransportBytes()
+	if errbyt != nil {
+		return res, errbyt
+	}
+
+	res = &pf.LoggingResponse{
+		LogConf: attbyte,
+	}
+
+	//log.Printf("SubmitNDSResponse sent for RID: %s\n", rhine.EncodeBase64(in.Rid))
+
+	if measureT {
+		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
+		ft1.WriteString(fmt.Sprintf("%d\n", elapsedTimes))
+		ft1.Sync()
+	}
+
+	return res, nil
+}

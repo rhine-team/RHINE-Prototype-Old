@@ -183,12 +183,12 @@ func NewZoneManager(config ZoneConfig) *ZoneManager {
 
 func (zm *ZoneManager) CreateSignedCSR(authlevel AuthorityLevel, exp time.Time, ca Authority, logs []string, revo int) (*Csr, error) {
 	csr := &Csr{
-		zone:       zm.zone,
-		ca:         ca,
-		logs:       logs,
-		al:         authlevel,
-		exp:        exp,
-		revocation: revo,
+		Zone:       zm.zone,
+		Ca:         ca,
+		Logs:       logs,
+		Al:         authlevel,
+		Exp:        exp,
+		Revocation: revo,
 	}
 
 	// Create RID
@@ -220,7 +220,7 @@ func (zm *ZoneManager) VerifyChildCSR(rawcsr []byte) (*Csr, *Psr, []byte, error)
 	var pcerti []byte
 	var privatekeyparent []byte
 	var pKey []byte
-	childName := csr.zone.Name
+	childName := csr.Zone.Name
 	if childName == "example.ethz.ch" {
 		// TODO This is a shortcut to keep the toy example test runnable
 		// Generate PSR
@@ -307,14 +307,14 @@ func (zm *ZoneManager) VerifyChildCSR(rawcsr []byte) (*Csr, *Psr, []byte, error)
 
 func (zm *ZoneManager) CreatePSR(csr *Csr, privatekey any) *Psr {
 	psr := Psr{
-		csr:        csr,
-		psignedcsr: RhineSig{},
-		pcert:      zm.Rcert,
-		dsp:        nil,
+		Csr:        csr,
+		Psignedcsr: RhineSig{},
+		Pcert:      zm.Rcert,
+		Dsp:        nil,
 	}
 
-	psr.psignedcsr.Data = csr.signedcsr
-	psr.psignedcsr.Sign(privatekey)
+	psr.Psignedcsr.Data = csr.Signedcsr
+	psr.Psignedcsr.Sign(privatekey)
 
 	return &psr
 }

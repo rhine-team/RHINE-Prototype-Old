@@ -204,3 +204,32 @@ func (a *AggManager) AcceptNDSAndStore(n *Nds) (*Confirm, error) {
 func (a *AggManager) GetPrivKey() any {
 	return a.privkey
 }
+
+func (myagg *AggManager) CreateNDS(psr *Psr, certC *x509.Certificate) (*Nds, error) {
+
+	// Extract list of designated loggers
+	//logl := psr.csr.logs
+
+	// TODO Randomly select aggregs instead of all
+	aggl := myagg.AggList
+
+	ndssign := NdsToSign{
+		//Log:     logl,
+		Agg:     aggl,
+		Zone:    psr.Csr.Zone,
+		Al:      psr.Csr.Al,
+		TbsCert: ExtractTbsRCAndHash(certC, false),
+		Exp:     psr.Csr.Exp,
+	}
+
+	nds := &Nds{
+		Nds: ndssign,
+	}
+
+	err := nds.Sign(myagg.privkey)
+	if err != nil {
+		return nil, err
+	}
+
+	return nds, nil
+}

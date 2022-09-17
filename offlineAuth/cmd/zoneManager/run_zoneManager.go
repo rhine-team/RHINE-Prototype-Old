@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"bytes"
+	//"bytes"
 	"fmt"
 	"log"
 	"net"
@@ -218,21 +218,23 @@ var RequestDelegCmd = &cobra.Command{
 			countLCFM++
 
 			// Create key list
-			inOrderKey = append(inOrderKey, nzm.LogMap[logConf.EntityName].Pubkey)
+			inOrderKey = append(inOrderKey, nzm.AggMap[logConf.EntityName].Pubkey)
 		}
 		log.Println("Received ", countLCFM, " LOG_CONFIRM(S)")
 
 		// Check if LogConfirms are correctly signed
-		if !rhine.VerifyLogConfirmSlice(logConfirmList, nzm.LogMap) {
+		if !rhine.VerifyAggConfirmSlice(logConfirmList, nzm.AggMap) {
 			log.Fatalf("A LogConfirm was not correctly signed!")
 		}
-		log.Println("All LogConfirms checked and valid")
+		log.Println("All Atts checked and valid")
 
-		// Verify certificate issuance and verify the SCT included in the certificate
-		if err := rhine.VerifyEmbeddedSCTs(childce, nzm.CaCert, inOrderKey); err != nil {
-			log.Fatalf("Verification of certificate included SCTs failed!")
-		}
-		log.Println("Certificate issued by trusted CA and included SCTs are valid.")
+		/*
+			// Verify certificate issuance and verify the SCT included in the certificate
+			if err := rhine.VerifyEmbeddedSCTs(childce, nzm.CaCert, inOrderKey); err != nil {
+				log.Fatalf("Verification of certificate included SCTs failed!")
+			}
+		*/
+		log.Println("Certificate issued by trusted CA ")
 
 		// Check if issued Certificate matches our created CSR
 		if !csr.CheckAgainstCert(childce) {
@@ -241,18 +243,20 @@ var RequestDelegCmd = &cobra.Command{
 		log.Println("Certificate matches CSR.")
 
 		// Check DSum and received RCert match
-		// We have to remove the SCTList to make the two TBSCerts comparable
-		tbsChildCert := rhine.ExtractTbsRCAndHash(childce, true)
+		/*
+			// We have to remove the SCTList to make the two TBSCerts comparable
+			tbsChildCert := rhine.ExtractTbsRCAndHash(childce, true)
 
-		if bytes.Compare(logConfirmList[0].Dsum.Cert, tbsChildCert) != 0 {
-			// Print parsed TBSCert from childce
-			nosct, _ := x509.RemoveSCTList(childce.RawTBSCertificate)
-			tbscerti, _ := x509.ParseTBSCertificate(nosct)
-			log.Println(x509util.CertificateToString(tbscerti))
+			if bytes.Compare(logConfirmList[0].Dsum.Cert, tbsChildCert) != 0 {
+				// Print parsed TBSCert from childce
+				nosct, _ := x509.RemoveSCTList(childce.RawTBSCertificate)
+				tbscerti, _ := x509.ParseTBSCertificate(nosct)
+				log.Println(x509util.CertificateToString(tbscerti))
 
-			log.Fatalf("Failed: DSum certificate data does not match received certificate data!")
-		}
-		log.Println("DSum und received RCert match")
+				log.Fatalf("Failed: DSum certificate data does not match received certificate data!")
+			}
+			log.Println("DSum und received RCert match")
+		*/
 
 		// Store the certificate
 		if rhine.StoreCertificatePEM(OutputPath, rCA.Rcertc) != nil {

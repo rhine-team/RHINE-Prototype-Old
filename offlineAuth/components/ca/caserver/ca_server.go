@@ -18,7 +18,7 @@ import (
 	"github.com/shirou/gopsutil/cpu"
 
 	agg "github.com/rhine-team/RHINE-Prototype/offlineAuth/components/aggregator"
-	logp "github.com/rhine-team/RHINE-Prototype/offlineAuth/components/log"
+	//logp "github.com/rhine-team/RHINE-Prototype/offlineAuth/components/log"
 )
 
 // Set timeout
@@ -202,6 +202,7 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 
 	LogAttReturns := make(chan rhine.Confirm, len(psr.GetLogs()))
 	AttList := make([]rhine.Confirm, len(psr.GetLogs()))
+	AttListPtr := make([]*rhine.Confirm, len(psr.GetLogs()))
 
 	for i, _ := range psr.GetLogs() {
 		i := i
@@ -209,7 +210,7 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 
-			rDemandLog, errDL := clientsLogger[i].DemandLogging(ctx, &agg.PreLoggingRequest{Prl: prlbytes})
+			rDemandLog, errDL := clientsLogger[i].PreLogging(ctx, &agg.PreLoggingRequest{Prl: prlbytes})
 			if errDL != nil {
 				log.Printf("No good response from log for PreLoggingReq: %v", errDL)
 				return errDL
@@ -223,7 +224,7 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 			if errresp != nil {
 				return errresp
 			}
-			LogAttReturns <- resp
+			LogAttReturns <- *resp
 			return nil
 		})
 	}
@@ -239,12 +240,13 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 
 	// Collect the Atts from the routines
 	for i := range psr.GetLogs() {
-		l := <-logWitnessReturns
+		l := <-LogAttReturns
 		AttList[i] = l
+		AttListPtr[i] = &l
 	}
 
 	// Verify LogAttest and match with prl
-	if !VerifyAggConfirmSlice(AttList, s.Ca.AggMap) {
+	if !rhine.VerifyAggConfirmSlice(AttList, s.Ca.AggMap) {
 		return res, errors.New("Failed to verify at least one of the attestations")
 	}
 
@@ -271,7 +273,25 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		measureTimes = time.Now()
 	}
 
-	Lreqbytes, errlreq := 
+	nds, errnds := s.Ca.CreateNDS(psr, preRC)
+	if errnds != nil {
+		return res, errnds
+	}
+	log.Printf("Constructed NDS looks like this: %+v", nds)
+
+	lr := &rhine.Lreq{
+		Logger: psr.GetLogs()[0],
+		Nds:    nds,
+		Atts:   AttListPtr,
+	}
+	if err := lr.SignLreq(s.Ca.PrivateKey); err != nil {
+		return res, err
+	}
+
+	lreqbytes, errlreq := lr.LreqToBytes()
+	if errlreq != nil {
+		return res, errlreq
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -279,44 +299,37 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 	rlogres, errdlog := clientsLogger[0].Logging(ctx, &agg.LoggingRequest{Lreq: lreqbytes})
 	if errdlog != nil {
 		log.Printf("Logging request failed!", errdlog)
-		return errdlog
+		return res, errdlog
 	}
 
 	//log.Printf("Received res for Demand Logging %+v ", rDemandLog)
 	log.Printf("Received response for DemandLogging ")
 
-	//LogWitnessList = append(LogWitnessList, newLwit)
-	resp, errresp := rhine.TransportBytesToConfirm(rDemandLog.Att)
-	if errresp != nil {
-		return errresp
+	logconfnew, errnewconf := rhine.TransportBytesToConfirm(rlogres.LogConf)
+	if errnewconf != nil {
+		return res, errnewconf
 	}
+	lcList := []rhine.Confirm{*logconfnew}
 
 	// Check if LogConfirms are correctly signed
-	if !rhine.VerifyLogConfirmSlice(logConfirmList, s.Ca.LogMap) {
+	if !rhine.VerifyAggConfirmSlice(lcList, s.Ca.AggMap) {
 		return res, errors.New("A LogConfirm was not correctly signed")
 	}
-	log.Println("CA: All LogConfirms checked and valid")
+	log.Println("CA: All LogConfirm checked and valid")
+	//TODO Match Lreq lc
 
 	// Issue Cert!
-	chilcert := s.Ca.IssueRHINECert(preRC, psr, SCTS)
+	chilcert := s.Ca.IssueRHINECert(preRC, psr)
 
-	// Check SCT
-	// We check SCT after embedding of SCTs, to reuse functions
-	if err := rhine.VerifyEmbeddedSCTs(chilcert, s.Ca.CACertificate, pubKeyInOrder); err != nil {
-		log.Println("CA: Verification of atleast one SCT failed")
-		return res, err
+	AttListBytes := [][]byte{}
+	for _, a := range AttList {
+		ctb, _ := (&a).ConfirmToTransportBytes()
+		AttListBytes = append(AttListBytes, ctb)
 	}
-	/*
-		if err := rhine.VerifyEmbeddedSCTs(chilcert, s.Ca.CACertificate, s.Ca.LogMap[s.Ca.LogList[0]].Pubkey); err != nil {
-			log.Println("CA: Verification of atleast one SCT failed")
-			return res, err
-		}
-	*/
-	//log.Println(chilcert)
 
 	res = &pf.SubmitNewDelegCAResponse{
 		Rcertc: chilcert.Raw,
-		Lcfms:  logConfirmListBytes,
+		Lcfms:  AttListBytes,
 		Rid:    in.Rid,
 	}
 

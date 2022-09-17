@@ -1,38 +1,38 @@
 package rhine
 
-/*
 import (
-	"bytes"
-	"crypto/sha256"
+	//"bytes"
+	//"crypto/sha256"
 
 	"errors"
-	"log"
-
+	//"log"
 	//"reflect"
-	"time"
-
-	"github.com/google/certificate-transparency-go/x509"
+	//"time"
+	//"github.com/google/certificate-transparency-go/x509"
 )
 
 type Lreq struct {
 	Logger string
-	nds
+	Nds    *Nds
+	Atts   []*Confirm
+
+	Signature []byte
 }
 
-func (p *Prl) PrlToBytes() ([]byte, error) {
+func (p *Lreq) LreqToBytes() ([]byte, error) {
 	bytes, err := SerializeCBOR(p)
 	return bytes, err
 }
 
-func PrlFromBytes(in []byte) (*Prl, error) {
-	prl := &Prl{}
-	err := DeserializeCBOR(in, prl)
-	return ds, err
+func LreqFromBytes(in []byte) (*Lreq, error) {
+	l := &Lreq{}
+	err := DeserializeCBOR(in, l)
+	return l, err
 }
 
-func (p *Prl) SignPrl(privkey any) error {
+func (p *Lreq) SignLreq(privkey any) error {
 	p.Signature = nil
-	byt, err := p.PrlToBytes()
+	byt, err := p.LreqToBytes()
 	if err != nil {
 		return err
 	}
@@ -48,12 +48,12 @@ func (p *Prl) SignPrl(privkey any) error {
 	return nil
 }
 
-func (p *Prl) VerifyPrl(pubkey any) error {
+func (p *Lreq) VerifyLreq(pubkey any) error {
 	rsig := RhineSig{
 		Signature: p.Signature,
 	}
 	p.Signature = nil
-	byt, err := p.PrlToBytes()
+	byt, err := p.LreqToBytes()
 	if err != nil {
 		return err
 	}
@@ -62,8 +62,7 @@ func (p *Prl) VerifyPrl(pubkey any) error {
 	boolv := rsig.Verify(pubkey)
 
 	if !boolv {
-		return errors.New("PRL has no valid signature")
+		return errors.New("Lreq has no valid signature")
 	}
 	return nil
 }
-*/

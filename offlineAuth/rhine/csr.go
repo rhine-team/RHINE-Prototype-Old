@@ -14,15 +14,15 @@ import (
 
 // csr object holds additional rhine-related info, which will be added as extension to actual x509 csr
 type Csr struct {
-	zone       ZoneOwner
-	ca         Authority
-	logs       []string
-	al         AuthorityLevel
-	exp        time.Time
-	csr        x509.CertificateRequest
-	revocation int
-	rid        []byte
-	signedcsr  []byte
+	Zone       ZoneOwner
+	Ca         Authority
+	Logs       []string
+	Al         AuthorityLevel
+	Exp        time.Time
+	Csr        x509.CertificateRequest
+	Revocation int
+	Rid        []byte
+	Signedcsr  []byte
 
 	Pkey any
 }
@@ -33,17 +33,17 @@ func (csr *Csr) Sign(priv any) error {
 		return err
 	}
 
-	csr.csr = x509.CertificateRequest{
-		PublicKey: csr.zone.Pubkey,
+	csr.Csr = x509.CertificateRequest{
+		PublicKey: csr.Zone.Pubkey,
 		Subject: pkix.Name{
-			CommonName: "RHINE_ZONE_OWNER:" + csr.zone.Name,
+			CommonName: "RHINE_ZONE_OWNER:" + csr.Zone.Name,
 		},
 		Extensions:      []pkix.Extension{ext},
 		ExtraExtensions: []pkix.Extension{ext},
-		DNSNames:        []string{csr.zone.Name},
+		DNSNames:        []string{csr.Zone.Name},
 	}
 
-	csr.signedcsr, err = x509.CreateCertificateRequest(rand.Reader, &csr.csr, priv)
+	csr.Signedcsr, err = x509.CreateCertificateRequest(rand.Reader, &csr.Csr, priv)
 	if err != nil {
 		return err
 	}
@@ -70,18 +70,18 @@ type CsrExt struct {
 
 func (csr *Csr) CreateCSRExtension() (pkix.Extension, error) {
 	//log.Printf("Csr: %+v\n", *csr)
-	if csr.ca.Pubkey == nil {
+	if csr.Ca.Pubkey == nil {
 		// TODO fix this workaround
-		csr.ca.Pubkey = []byte(nil)
+		csr.Ca.Pubkey = []byte(nil)
 	}
 	data, err := asn1.Marshal(CsrExt{
-		Zone:       csr.zone,
-		Al:         int(csr.al), //TODO: Look at consq.
-		Exp:        csr.exp,
-		Revocation: csr.revocation,
-		CAuthority: csr.ca,
-		Logs:       csr.logs,
-		Rid:        csr.rid,
+		Zone:       csr.Zone,
+		Al:         int(csr.Al), //TODO: Look at consq.
+		Exp:        csr.Exp,
+		Revocation: csr.Revocation,
+		CAuthority: csr.Ca,
+		Logs:       csr.Logs,
+		Rid:        csr.Rid,
 	})
 	if err != nil {
 		log.Println("Marshaling of extension failed!")
@@ -144,33 +144,33 @@ func VerifyCSR(csr []byte) (*Csr, error) {
 	}
 
 	return &Csr{
-		zone:       csrExt.Zone,
-		al:         AuthorityLevel(csrExt.Al),
-		exp:        csrExt.Exp,
-		revocation: csrExt.Revocation,
-		ca:         csrExt.CAuthority,
-		logs:       csrExt.Logs,
-		rid:        csrExt.Rid,
-		csr:        *csrRequest,
-		signedcsr:  csr,
+		Zone:       csrExt.Zone,
+		Al:         AuthorityLevel(csrExt.Al),
+		Exp:        csrExt.Exp,
+		Revocation: csrExt.Revocation,
+		Ca:         csrExt.CAuthority,
+		Logs:       csrExt.Logs,
+		Rid:        csrExt.Rid,
+		Csr:        *csrRequest,
+		Signedcsr:  csr,
 		Pkey:       csrRequest.PublicKey,
 	}, nil
 
 }
 
 func (csr *Csr) CheckAgainstCert(precert *x509.Certificate) bool {
-	cs := csr.csr
+	cs := csr.Csr
 	res := cs.Subject.String() == precert.Subject.String() && EqualKeys(cs.PublicKey, precert.PublicKey)
 	res = res && precert.DNSNames[0] == cs.DNSNames[0]
 	return res
 }
 
 func (csr *Csr) ReturnRawBytes() []byte {
-	return csr.signedcsr
+	return csr.Signedcsr
 }
 
 func (csr *Csr) ReturnRid() []byte {
-	return csr.rid
+	return csr.Rid
 }
 
 // Creates a rid given a csr
@@ -185,36 +185,36 @@ func (csr *Csr) createRID() ([]byte, error) {
 	}
 
 	// ZN
-	hasher.Write([]byte(csr.zone.Name))
+	hasher.Write([]byte(csr.Zone.Name))
 
 	// pk
-	if keyBytes, _, err := EncodePublicKey(csr.zone.Pubkey); err != nil {
+	if keyBytes, _, err := EncodePublicKey(csr.Zone.Pubkey); err != nil {
 		return nil, err
 	} else {
 		hasher.Write(keyBytes)
 	}
 
 	// al
-	hasher.Write([]byte{byte(csr.al)})
+	hasher.Write([]byte{byte(csr.Al)})
 
 	// expiration time
-	if timeBinary, err := csr.exp.MarshalBinary(); err != nil {
+	if timeBinary, err := csr.Exp.MarshalBinary(); err != nil {
 		return nil, err
 	} else {
 		hasher.Write(timeBinary)
 	}
 
 	// revocation bit
-	hasher.Write([]byte{byte(csr.revocation)})
+	hasher.Write([]byte{byte(csr.Revocation)})
 
 	// A
-	hasher.Write([]byte(csr.ca.Name))
+	hasher.Write([]byte(csr.Ca.Name))
 
 	// L
-	for _, lo := range csr.logs {
+	for _, lo := range csr.Logs {
 		hasher.Write([]byte(lo))
 	}
 
-	csr.rid = hasher.Sum(nil)
-	return csr.rid, nil
+	csr.Rid = hasher.Sum(nil)
+	return csr.Rid, nil
 }

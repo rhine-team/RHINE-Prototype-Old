@@ -83,9 +83,9 @@ func (n *Nds) CheckAgainstCSR(csr *Csr) bool {
 	//matching := reflect.DeepEqual(n.Nds.Log, csr.logs)
 	matching := true
 	// Check zone
-	matching = matching && n.Nds.Zone.Name == csr.zone.Name
+	matching = matching && n.Nds.Zone.Name == csr.Zone.Name
 	// Check Al
-	matching = matching && n.Nds.Al == csr.al
+	matching = matching && n.Nds.Al == csr.Al
 
 	return matching
 }

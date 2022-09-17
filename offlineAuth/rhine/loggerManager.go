@@ -209,8 +209,8 @@ func (lm *LogManager) DSProof(pzone string, czone string) (Dsp, error) {
 
 func (lm *LogManager) VerifyNewDelegationRequestLog(rcertp *x509.Certificate, acsr *RhineSig, precert *x509.Certificate, nds *Nds) (error, *Psr, *Lwit) {
 	psr := Psr{
-		psignedcsr: *acsr,
-		pcert:      rcertp,
+		Psignedcsr: *acsr,
+		Pcert:      rcertp,
 	}
 
 	// Check that ACSR was signed by Parent and
@@ -247,12 +247,12 @@ func (lm *LogManager) VerifyNewDelegationRequestLog(rcertp *x509.Certificate, ac
 	log.Println("PreCertificate correct.")
 
 	// Check CSR matching PreCert
-	if !psr.csr.CheckAgainstCert(precert) {
+	if !psr.Csr.CheckAgainstCert(precert) {
 		return errors.New("PreCert and CSR not matching."), nil, nil
 	}
 
 	// Check NDS
-	if !nds.CheckAgainstCSR(psr.csr) {
+	if !nds.CheckAgainstCSR(psr.Csr) {
 		log.Printf("Failed check of NDS against CSR: %+v ", nds)
 		return errors.New("Failed check of NDS against CSR at log"), nil, nil
 	}
@@ -265,14 +265,14 @@ func (lm *LogManager) VerifyNewDelegationRequestLog(rcertp *x509.Certificate, ac
 	log.Println("NDS correctly signed.")
 
 	// Construct LogWitness
-	lwit, errlwit := CreateLwit(nds, &lm.Log, psr.csr.logs, lm.privkey)
+	lwit, errlwit := CreateLwit(nds, &lm.Log, psr.Csr.Logs, lm.privkey)
 	if errlwit != nil {
 		return errlwit, nil, nil
 	}
 
 	// Store important data in Request cache
-	lm.RequestCache.Set(string(psr.csr.rid), RememberRequest{
-		Rid:        psr.csr.rid,
+	lm.RequestCache.Set(string(psr.Csr.Rid), RememberRequest{
+		Rid:        psr.Csr.Rid,
 		NDS:        nds,
 		PreRCc:     precert,
 		ParentCert: rcertp,
