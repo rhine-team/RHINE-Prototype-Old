@@ -1,7 +1,7 @@
 package resolver
 
 import (
-	"bytes"
+	//"bytes"
 	"crypto/ed25519"
 
 	//"crypto/x509"
@@ -43,20 +43,13 @@ type ROA struct {
 }
 
 func verifyRhineROA(roa *ROA, h *DNSHandler) bool {
-	rcert, publiKey, err := ParseVerifyRhineCertTxtEntry(roa.rcert, h)
+	_, publiKey, err := ParseVerifyRhineCertTxtEntry(roa.rcert, h)
 	if err != nil {
 		log.Warn(err.Error())
 		return false
 	}
 	log.Debug("RCert successfully parsed")
 	// TODO add more key type
-
-	// Check DSum and DSAProof
-	err = ParseVerifyDSumAndDSAProof(roa.dSum, roa.dsaProof, rcert, h)
-	if err != nil {
-		log.Warn(err.Error())
-		return false
-	}
 
 	sig := roa.keySig
 	key := roa.dnskey
@@ -75,6 +68,9 @@ func verifyRhineROA(roa *ROA, h *DNSHandler) bool {
 
 func ParseVerifyDSumAndDSAProof(dsumtxt *dns.TXT, prooftxt *dns.TXT, rcert *x509.Certificate, h *DNSHandler) error {
 	// Check DSum first
+	if dsumtxt == nil {
+		return errors.New("DSum not found")
+	}
 	entries := dsumtxt.Txt
 	entry := strings.Join(entries, "")
 
@@ -94,6 +90,10 @@ func ParseVerifyDSumAndDSAProof(dsumtxt *dns.TXT, prooftxt *dns.TXT, rcert *x509
 	}
 
 	// Check DSAProof
+	if prooftxt == nil {
+		return errors.New("DSAProof not found")
+	}
+
 	entriesProof := prooftxt.Txt
 	entryProof := strings.Join(entriesProof, "")
 	stringchunks := strings.SplitAfter(entryProof, txtDSAProofprefix)[1:]
@@ -105,11 +105,14 @@ func ParseVerifyDSumAndDSAProof(dsumtxt *dns.TXT, prooftxt *dns.TXT, rcert *x509
 		return errProof
 	}
 
+	log.Info("", rcert)
 	// Match DSum Rcert
-	tbsbytes := rhine.ExtractTbsRCAndHash(rcert, true)
-	if bytes.Compare(dsum.Cert, tbsbytes) != 0 {
-		return errors.New("Cert embedded in DSum and RCert did not match")
-	}
+	/*
+		tbsbytes := rhine.ExtractTbsRCAndHash(rcert, true)
+		if bytes.Compare(dsum.Cert, tbsbytes) != 0 {
+			return errors.New("Cert embedded in DSum and RCert did not match")
+		}
+	*/
 
 	// TODO T recent enough and revocation
 

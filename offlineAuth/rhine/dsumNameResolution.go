@@ -3,6 +3,7 @@ package rhine
 import (
 	"crypto/sha256"
 	"errors"
+	"log"
 	"time"
 )
 
@@ -29,10 +30,13 @@ func (dsa *DSA) GetDSumNR(ll []string) *DSumNR {
 }
 
 func (d *DSumNR) SignOne(loggername string, privkey any) error {
+	log.Printf("DSum looks like %+v: ", d)
+	log.Println("Privkey ", privkey)
+
 	// Temp save signatures
 	temp := d.Signatures
 	d.Signatures = nil
-	byt, err := d.GetDSumNRToBytes()
+	byt, err := SerializeCBOR(d)
 
 	if err != nil {
 		return err
@@ -40,6 +44,7 @@ func (d *DSumNR) SignOne(loggername string, privkey any) error {
 	rsig := RhineSig{
 		Data: byt,
 	}
+	log.Println("Signing data: ", byt)
 	err = rsig.Sign(privkey)
 	if err != nil {
 		return err
@@ -56,22 +61,29 @@ func (d *DSumNR) SignOne(loggername string, privkey any) error {
 }
 
 func (d *DSumNR) VerifyOne(loggername string, pubkey any) error {
+	log.Printf("DSum looks like %+v: ", d)
+	log.Println("Pubkey ", pubkey)
+
 	var ind int
 	for i, v := range d.LoggerList {
 		if v == loggername {
 			ind = i
 		}
 	}
+	log.Println("We go the index ", ind)
+
 	rsig := RhineSig{
 		Signature: d.Signatures[ind],
 	}
 	d.Signatures = nil
 
-	byt, err := d.GetDSumNRToBytes()
+	byt, err := SerializeCBOR(d)
 	if err != nil {
+		log.Println("Cboring for verification fail")
 		return err
 	}
 	rsig.Data = byt
+	log.Println("Signing data", byt)
 
 	if !rsig.Verify(pubkey) {
 		return errors.New("DSumNR failed verification of signature for: " + loggername)

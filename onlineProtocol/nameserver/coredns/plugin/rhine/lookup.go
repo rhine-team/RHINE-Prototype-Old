@@ -164,6 +164,10 @@ func (z *Zone) Lookup(ctx context.Context, state request.Request, qname string, 
 			if appendRRSIGs {
 				dss := typeFromElem(elem, dns.TypeDS, appendRRSIGs)
 				nsrrs = append(nsrrs, dss...)
+
+				// DSum and DSAProof
+				log.Info("We entered NS processing")
+				glue = z.rhineDelegationDSumAndDSAProof(glue, qname)
 			}
 
 			return nil, nsrrs, glue, Delegation
@@ -449,6 +453,7 @@ func (z *Zone) additionalProcessing(answer []dns.RR, do bool) (extra []dns.RR) {
 }
 
 func (z *Zone) rhineDelegationProcessing(rrs []dns.RR, childzone string) []dns.RR {
+	log.Info("Entered Rhine rcert proc.")
 	tr := z.Tree
 	apex := z.origin
 	if z.origin == "." {
@@ -458,6 +463,19 @@ func (z *Zone) rhineDelegationProcessing(rrs []dns.RR, childzone string) []dns.R
 		log.Info("Found RCert")
 		Rcert := rcert.Type(dns.TypeTXT)
 		rrs = append(rrs, Rcert...)
+	}
+
+	log.Info("Looks like :", rrs)
+
+	return rrs
+}
+
+func (z *Zone) rhineDelegationDSumAndDSAProof(rrs []dns.RR, childzone string) []dns.RR {
+	log.Info("Entered Rhine DSum and DSA proc.")
+	tr := z.Tree
+	apex := z.origin
+	if z.origin == "." {
+		apex = ""
 	}
 	// Search for dsum record
 	if dsum, ok := tr.Search("_dsum." + apex); ok {

@@ -122,7 +122,7 @@ func (s *Signer) Sign(now time.Time) (*file.Zone, error) {
 	parentToChild := make(map[string]string)
 	parentToChild["."] = "com."
 	parentToChild["com."] = "rhine-test.com."
-	parentToChild["rhine-test.com."] = "com."
+	parentToChild["rhine-test.com."] = "test.rhine-test.com"
 
 	// Inser DSAProofs
 	// TODO: DSA input
@@ -156,6 +156,7 @@ func (s *Signer) Sign(now time.Time) (*file.Zone, error) {
 		log.Fatal("Error tree making.")
 	}
 
+	lout.Println("Content: ", content)
 	dsa := &rhine.DSA{
 		Zone:     s.origin,
 		Alv:      aL,
@@ -180,6 +181,7 @@ func (s *Signer) Sign(now time.Time) (*file.Zone, error) {
 		} else {
 			namez = leafzone.Start.Zone
 		}
+		lout.Println("Namez: ", namez)
 		z.Insert(createDSAProofRR(mp, namez))
 
 	}

@@ -108,6 +108,7 @@ func (h *DNSHandler) ServeDNS(ctx context.Context, ch *middleware.Chain) {
 }
 
 func (h *DNSHandler) handle(ctx context.Context, req *dns.Msg) *dns.Msg {
+
 	q := req.Question[0]
 
 	do := false
@@ -178,10 +179,12 @@ func (h *DNSHandler) handle(ctx context.Context, req *dns.Msg) *dns.Msg {
 		if resp.Question[0].Qtype == dns.TypeDNSKEY {
 			log.Debug("Qtype is DNSKEY, ROA is in the answer")
 			roa, ok := extractROAFromMsg(resp)
+			h.roaCache.Add(hash(resp.Question[0].Name), roa)
 			if !ok {
 				log.Info(errNoROA.Error())
 				break
 			}
+			_, _ = h.FindROAInCache(resp.Question[0].Name)
 			if !verifyRhineROA(roa, h) {
 				log.Info("The ROA verify failed!")
 				//return dnsutil.SetRcode(req, dns.RcodeServerFailure, do)
@@ -214,11 +217,14 @@ func (h *DNSHandler) handle(ctx context.Context, req *dns.Msg) *dns.Msg {
 						log.Info("Failed to get ROA, error", err, err.Error())
 						break
 					} else {
+						h.roaCache.Add(hash(resp.Question[0].Name), RoA)
+						_, _ = h.FindROAInCache(resp.Question[0].Name)
 						if !verifyRhineROA(RoA, h) {
 							log.Info("The ROA verify failed!")
 							//return dnsutil.SetRcode(req, dns.RcodeServerFailure, do)
 							break
 						}
+
 						log.Info("The ROA verified")
 						h.roaCache.Add(hash(signer), RoA)
 						dnskey = RoA.dnskey
@@ -368,3 +374,57 @@ func (h *DNSHandler) purge(qname string) {
 }
 
 const name = "resolver"
+
+func (h *DNSHandler) FindROAInCache(qname string) (key uint64, ro bool) {
+	log.Info("The name: " + qname)
+	qname = dns.Fqdn(qname)
+	k := hash(qname)
+	// TODO(lou): add checkExist() function for fast lookup instead of using Get() which acquires Rlock that leads to performance loss
+	//if _, _ := h.roaCache.Get(k); false { //TODO only temporary!!
+	//return k, false
+	//}
+	if true {
+		// Start searching in the cache for parent domain of queried domain
+		var off = 0
+		var end = false
+		for {
+			off, end = dns.NextLabel(qname, off)
+			if end {
+				break
+			}
+			parent := qname[off:]
+			log.Info("All parents: " + parent)
+			k = hash(parent)
+			if i, ok := h.roaCache.Get(k); ok {
+				log.Info("Roa res: ", i)
+				if delegation, ok := i.(ROA); ok {
+
+					if err := ParseVerifyDSumAndDSAProof(delegation.dSum, delegation.dsaProof, nil, h); err != nil {
+						return k, false
+					}
+					log.Info("We got stuff: ", delegation)
+				} else {
+					//log.Info("The delegation cache should only contain ROA! Wrong record: %s", parent)
+				}
+				return 0, true
+			}
+		}
+		// check rootzone
+		k = hash(rootzone)
+		if i, ok := h.roaCache.Get(k); ok {
+			log.Info("Roa res: ", i)
+			if delegation, ok := i.(*ROA); ok {
+
+				if err := ParseVerifyDSumAndDSAProof(delegation.dSum, delegation.dsaProof, nil, h); err != nil {
+					return k, false
+				}
+
+				log.Info("We got stuff: ", delegation)
+			} else {
+				log.Warn("The delegation cache should only contain ROA! Wrong record: %s", rootzone)
+			}
+		}
+
+	}
+	return 0, true
+}
