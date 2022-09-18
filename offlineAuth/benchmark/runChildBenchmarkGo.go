@@ -124,6 +124,8 @@ func main() {
 	defer conni.Close()
 
 	count := 0
+	startTime := time.Now()
+	intervalTime := time.Now()
 	for i, name := range childNames {
 		go runChild(os.Args[1], name, childKeyPath[i], noout, conni, connCA, cof)
 		if !noout {
@@ -133,6 +135,14 @@ func main() {
 		count += 1
 		if !noout {
 			log.Println("Sleep")
+		}
+		if true {
+			if time.Since(intervalTime) > time.Second*5 {
+				elapsed := time.Since(startTime)
+				intervalTime = time.Now()
+				fmt.Println("Sending rate: ", float64(count)/elapsed.Seconds())
+				count = 0
+			}
 		}
 
 	}
