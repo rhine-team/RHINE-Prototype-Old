@@ -23,9 +23,10 @@ import (
 	_ "github.com/rhine-team/RHINE-Prototype/offlineAuth/cbor"
 	"github.com/rhine-team/RHINE-Prototype/offlineAuth/components/ca"
 	ps "github.com/rhine-team/RHINE-Prototype/offlineAuth/components/parentserver"
+
 	//"github.com/rhine-team/RHINE-Prototype/offlineAuth/components/parentserver/pserver"
 	//"github.com/spf13/cobra"
-	//"google.golang.org/grpc"
+	"google.golang.org/grpc"
 )
 
 // This script should be run on the parent server
@@ -104,12 +105,29 @@ func main() {
 		return nil
 	})
 
-	for i, name := range childNames {
-		go runChild(os.Args[1], name, childKeyPath[i], noout)
+	// Init connections
+	// Connect to the parent
+	// Parse config
+	var errparse error
+	cof, errparse := rhine.LoadZoneConfig(os.Args[1])
+	if errparse != nil {
+		return
+		//log.Fatalf("Could not parse the config file.")
+	}
 
-		log.Println("Started go routine, ", i)
+	conni := rhine.GetGRPCConn(cof.ParentServerAddr)
+	log.Println("Established connection to Parent at: ", cof.ParentServerAddr)
+	defer conni.Close()
+
+	for i, name := range childNames {
+		go runChild(os.Args[1], name, childKeyPath[i], noout, conni)
+		if !noout {
+			log.Println("Started go routine, ", i)
+		}
 		time.Sleep(time.Duration(sleeptime) * time.Microsecond)
-		log.Println("Sleep")
+		if !noout {
+			log.Println("Sleep")
+		}
 
 	}
 	for true {
@@ -136,12 +154,12 @@ func main() {
 
 }
 
-func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOff bool) {
+func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOff bool, connec *grpc.ClientConn) {
 	if consoleOff {
 		rhine.DisableConsoleOutput()
 	}
 
-	var timeout = time.Second * 5
+	var timeout = time.Second * 2
 
 	// Parse config
 	var errparse error
@@ -189,11 +207,11 @@ func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOf
 	log.Println("Created a signed CSR")
 
 	// Connect to the parent
-	conn := rhine.GetGRPCConn(cof.ParentServerAddr)
-	log.Println("Established connection to Parent at: ", cof.ParentServerAddr)
+	//conn := rhine.GetGRPCConn(cof.ParentServerAddr)
+	//log.Println("Established connection to Parent at: ", cof.ParentServerAddr)
 
-	defer conn.Close()
-	c := ps.NewParentServiceClient(conn)
+	//defer conn.Close()
+	c := ps.NewParentServiceClient(connec)
 
 	// Send delegation request to the server
 	ctx, _ := context.WithTimeout(context.Background(), timeout)
@@ -205,7 +223,7 @@ func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOf
 	//log.Println("Received a response from parent for Delegation Req.: ", r)
 	log.Println("Received a response from parent for Delegation Request")
 	// Close connection
-	conn.Close()
+	//conn.Close()
 
 	// Parse the response
 	apv := &rhine.RhineSig{
