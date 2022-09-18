@@ -195,7 +195,7 @@ func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOf
 
 	atomic.AddUint64(&counterGo, 1)
 
-	var timeout = time.Second * 10
+	var timeout = time.Second * 1000
 
 	/*
 		// Parse config

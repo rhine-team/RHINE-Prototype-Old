@@ -116,8 +116,9 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		logger := logger
 
 		// Create connections and clients, remember to reuse later
-		conn := rhine.GetGRPCConn(logger)
-		defer conn.Close()
+		//conn := rhine.GetGRPCConn(logger)
+		//defer conn.Close()
+		conn := s.Ca.AggConnections[logger]
 		clientsLogger[i] = agg.NewAggServiceClient(conn)
 
 		errGroup.Go(func() error {

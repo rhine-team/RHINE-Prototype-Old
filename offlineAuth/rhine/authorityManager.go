@@ -15,6 +15,8 @@ import (
 
 	"time"
 
+	"google.golang.org/grpc"
+
 	"github.com/google/certificate-transparency-go/asn1"
 	"github.com/google/certificate-transparency-go/x509"
 	"github.com/google/certificate-transparency-go/x509/pkix"
@@ -30,6 +32,8 @@ type Ca struct {
 	AggMap        map[string]Agg
 	LogList       []string
 	AggList       []string
+
+	AggConnections map[string]*grpc.ClientConn
 }
 
 type CaConfig struct {
@@ -159,6 +163,13 @@ func NewCA(config CaConfig) *Ca {
 			Pubkey: pk,
 		}
 	}
+
+	// Init Aggregator/(now logger) connections
+	aggConnectionMap := make(map[string]*grpc.ClientConn)
+	for _, as := range myca.AggList {
+		aggConnectionMap[as] = GetGRPCConn(as)
+	}
+	myca.AggConnections = aggConnectionMap
 
 	return &myca
 
