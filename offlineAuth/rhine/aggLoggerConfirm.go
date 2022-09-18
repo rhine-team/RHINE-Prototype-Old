@@ -118,6 +118,18 @@ func VerifyAggConfirmSlice(clist []Confirm, aggMap map[string]Agg) bool {
 	return res
 }
 
+func VerifyAggConfirmSlicePtr(clist []*Confirm, aggMap map[string]Agg) bool {
+	res := true
+	for _, lc := range clist {
+		// TODO: Check existence in map
+		res = res && lc.VerifyConfirm(aggMap[lc.EntityName].Pubkey)
+	}
+	if !res {
+		log.Println("Confirm slice verification failed!")
+	}
+	return res
+}
+
 func VerifyLogConfirmSlice(clist []Confirm, logMap map[string]Log) bool {
 	res := true
 	for _, lc := range clist {

@@ -11,3 +11,5 @@
     "AggregatorName" :  ["localhost:50050", "localhost:50051"],
     "AggPubKeyPaths"  : ["data/keys/Agg1_pub.pem", "data/keys/Agg2_pub.pem"]
 }
+
+

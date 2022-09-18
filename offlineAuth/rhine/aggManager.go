@@ -12,6 +12,7 @@ import (
 
 	badger "github.com/dgraph-io/badger/v3"
 	"github.com/google/certificate-transparency-go/x509"
+	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
 type AggManager struct {
@@ -31,6 +32,10 @@ type AggManager struct {
 	RequestCache map[string]RememberRequest
 
 	DB *badger.DB
+
+	// Logres structures
+	LogresData  cmap.ConcurrentMap[chan *LogresMsg]
+	LogresRound cmap.ConcurrentMap[int]
 }
 
 type AggConfig struct {
@@ -162,6 +167,15 @@ func NewAggManager(config AggConfig) *AggManager {
 		}
 	}
 
+	// Logres stuff
+	LogresData := cmap.New[chan *LogresMsg]()
+	for _, logr := range myagg.AggList {
+		LogresData.Set(logr, make(chan *LogresMsg, 100))
+	}
+
+	LogresRound := cmap.New[int]()
+	myagg.LogresData = LogresData
+	myagg.LogresRound = LogresRound
 	return &myagg
 }
 

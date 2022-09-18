@@ -27,6 +27,8 @@ type AggServiceClient interface {
 	PreLogging(ctx context.Context, in *PreLoggingRequest, opts ...grpc.CallOption) (*PreLoggingResponse, error)
 	Logging(ctx context.Context, in *LoggingRequest, opts ...grpc.CallOption) (*LoggingResponse, error)
 	DSProofRet(ctx context.Context, in *DSProofRetRequest, opts ...grpc.CallOption) (*DSProofRetResponse, error)
+	StartLogres(ctx context.Context, in *StartLogresRequest, opts ...grpc.CallOption) (*StartLogresResponse, error)
+	LogresValue(ctx context.Context, in *LogresValueRequest, opts ...grpc.CallOption) (*LogresValueResponse, error)
 }
 
 type aggServiceClient struct {
@@ -82,6 +84,24 @@ func (c *aggServiceClient) DSProofRet(ctx context.Context, in *DSProofRetRequest
 	return out, nil
 }
 
+func (c *aggServiceClient) StartLogres(ctx context.Context, in *StartLogresRequest, opts ...grpc.CallOption) (*StartLogresResponse, error) {
+	out := new(StartLogresResponse)
+	err := c.cc.Invoke(ctx, "/aggregator.AggService/StartLogres", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aggServiceClient) LogresValue(ctx context.Context, in *LogresValueRequest, opts ...grpc.CallOption) (*LogresValueResponse, error) {
+	out := new(LogresValueResponse)
+	err := c.cc.Invoke(ctx, "/aggregator.AggService/LogresValue", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AggServiceServer is the server API for AggService service.
 // All implementations must embed UnimplementedAggServiceServer
 // for forward compatibility
@@ -91,6 +111,8 @@ type AggServiceServer interface {
 	PreLogging(context.Context, *PreLoggingRequest) (*PreLoggingResponse, error)
 	Logging(context.Context, *LoggingRequest) (*LoggingResponse, error)
 	DSProofRet(context.Context, *DSProofRetRequest) (*DSProofRetResponse, error)
+	StartLogres(context.Context, *StartLogresRequest) (*StartLogresResponse, error)
+	LogresValue(context.Context, *LogresValueRequest) (*LogresValueResponse, error)
 	mustEmbedUnimplementedAggServiceServer()
 }
 
@@ -112,6 +134,12 @@ func (UnimplementedAggServiceServer) Logging(context.Context, *LoggingRequest) (
 }
 func (UnimplementedAggServiceServer) DSProofRet(context.Context, *DSProofRetRequest) (*DSProofRetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DSProofRet not implemented")
+}
+func (UnimplementedAggServiceServer) StartLogres(context.Context, *StartLogresRequest) (*StartLogresResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StartLogres not implemented")
+}
+func (UnimplementedAggServiceServer) LogresValue(context.Context, *LogresValueRequest) (*LogresValueResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LogresValue not implemented")
 }
 func (UnimplementedAggServiceServer) mustEmbedUnimplementedAggServiceServer() {}
 
@@ -216,6 +244,42 @@ func _AggService_DSProofRet_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AggService_StartLogres_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartLogresRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AggServiceServer).StartLogres(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/aggregator.AggService/StartLogres",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AggServiceServer).StartLogres(ctx, req.(*StartLogresRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AggService_LogresValue_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LogresValueRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AggServiceServer).LogresValue(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/aggregator.AggService/LogresValue",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AggServiceServer).LogresValue(ctx, req.(*LogresValueRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AggService_ServiceDesc is the grpc.ServiceDesc for AggService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -242,6 +306,14 @@ var AggService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DSProofRet",
 			Handler:    _AggService_DSProofRet_Handler,
+		},
+		{
+			MethodName: "StartLogres",
+			Handler:    _AggService_StartLogres_Handler,
+		},
+		{
+			MethodName: "LogresValue",
+			Handler:    _AggService_LogresValue_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

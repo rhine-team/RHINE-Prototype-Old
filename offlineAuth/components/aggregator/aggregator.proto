@@ -15,6 +15,27 @@ service AggService {
   rpc Logging (LoggingRequest) returns (LoggingResponse) {}
 
   rpc DSProofRet (DSProofRetRequest) returns (DSProofRetResponse) {}
+
+  rpc StartLogres (StartLogresRequest) returns (StartLogresResponse) {}
+
+  rpc LogresValue (LogresValueRequest) returns (LogresValueResponse) {}
+}
+
+message StartLogresRequest {
+	string NumR = 1;
+}
+
+message StartLogresResponse {
+	string Res = 1;
+}
+
+
+message LogresValueRequest {
+	bytes Msg = 1;
+}
+
+message LogresValueResponse {
+	string Res = 1;
 }
 
 message PreLoggingRequest {

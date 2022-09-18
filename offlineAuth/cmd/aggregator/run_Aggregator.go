@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"path/filepath"
@@ -24,6 +26,7 @@ var testParentZone string
 var testCertPath string
 var parentCertDirectoryPath string
 var consoleOff bool
+var timeout = time.Second * 30
 
 var rootCmd = &cobra.Command{
 	Use:   "run_Aggregator",
@@ -84,6 +87,62 @@ var WipeDB = &cobra.Command{
 		} else {
 			log.Println("All badger data has been dropped with succes!")
 		}
+	},
+}
+
+var StartLogres = &cobra.Command{
+	Example: "./run_Aggregator StartLogres",
+	Use:     "StartLogres",
+	Short:   "Logres",
+	Long:    "Logres",
+	Args:    nil,
+	Run: func(cmd *cobra.Command, args []string) {
+		// Parse config
+		cof, errparse := rhine.LoadAggConfig(configPath)
+		if errparse != nil {
+			log.Fatalf("Could not parse the aggregator config file.")
+		}
+		log.Println("Configuration file parsed.")
+
+		// Make a new Log struct
+		AggManager := rhine.NewAggManager(cof)
+
+		log.Println("New Aggregator Manager initialized")
+
+		clientsLogger := make([]pf.AggServiceClient, len(AggManager.AggList))
+		// Make connections for all designated loggers
+
+		logresreq := &pf.StartLogresRequest{}
+		var wg sync.WaitGroup
+		wg.Add(len(clientsLogger))
+
+		for i, logger := range AggManager.AggList {
+			log.Println("Agglist")
+			i := i
+			logger := logger
+
+			// Create connections and clients, remember to reuse later
+			conn := rhine.GetGRPCConn(logger)
+			defer conn.Close()
+			clientsLogger[i] = pf.NewAggServiceClient(conn)
+
+			go func() {
+				defer wg.Done()
+				log.Println("In the go send routine")
+				ctx, cancel := context.WithTimeout(context.Background(), timeout)
+				defer cancel()
+
+				r, err := clientsLogger[i].StartLogres(ctx, logresreq)
+				if err != nil {
+					log.Printf("No good response: %v", err)
+				} else {
+					log.Println("Got response: ", r)
+				}
+
+			}()
+
+		}
+		wg.Wait()
 	},
 }
 
@@ -194,13 +253,14 @@ func init() {
 	AddTestDT.Flags().StringVar(&testCertPath, "certPath", "example.pem", "CertificatePath")
 	AddDTBatch.Flags().StringVar(&configPath, "config", "configs/configAgg.json", "ConfigPath")
 	AddDTBatch.Flags().StringVar(&parentCertDirectoryPath, "pCertDir", "data/temp/parentcerts/", "PathToParentCertDir")
-
+	StartLogres.Flags().StringVar(&configPath, "config", "configs/configAgg.json", "ConfigPath")
 }
 
 func main() {
 	rootCmd.AddCommand(WipeDB)
 	rootCmd.AddCommand(AddTestDT)
 	rootCmd.AddCommand(AddDTBatch)
+	rootCmd.AddCommand(StartLogres)
 	err := rootCmd.Execute()
 	if err != nil {
 		log.Fatal(err)

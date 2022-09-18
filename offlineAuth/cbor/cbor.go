@@ -1,8 +1,8 @@
 package cbor
 
 import (
-	"log"
-	"reflect"
+	//"log"
+	//"reflect"
 
 	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/grpc/encoding"
@@ -31,12 +31,12 @@ func (_ CBOR) Name() string {
 }
 
 func (c CBOR) Marshal(v interface{}) ([]byte, error) {
-	log.Println("=================CBOR MESSAGE BEGIN=============")
-	log.Printf("Type of message: %T\n", v)
-	log.Println("Flat size before enc:", reflect.TypeOf(v).Size())
+	//log.Println("=================CBOR MESSAGE BEGIN=============")
+	//log.Printf("Type of message: %T\n", v)
+	//log.Println("Flat size before enc:", reflect.TypeOf(v).Size())
 	res, err := EMode.Marshal(v)
-	log.Println("Encoded length: ", len(res), "bytes")
-	log.Println("=================CBOR MESSAGE END=============")
+	//log.Println("Encoded length: ", len(res), "bytes")
+	//log.Println("=================CBOR MESSAGE END=============")
 	return res, err
 }
 
