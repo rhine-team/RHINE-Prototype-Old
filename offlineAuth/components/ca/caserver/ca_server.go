@@ -343,13 +343,16 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 	if time.Since(intervalTime) > time.Second*5 {
 		elapsed := time.Since(startTime)
 		log.Println("INFO", count_my, elapsed)
-		intervalTime = time.Now()
+		//intervalTime = time.Now()
+		elapsed_int := time.Since(intervalTime)
 
 		// Calc CPU util
 		cpuNew, _ := cpu.Percent(0, true)
 		cpuPercent = cpuNew
-		f.WriteString(fmt.Sprintf("%f,%d,%f,%f\n", elapsed.Seconds(), count_my, float64(count_my)/elapsed.Seconds(), cpuPercent))
+		f.WriteString(fmt.Sprintf("%f,%d,%f,%f\n", elapsed.Seconds(), count_my, float64(count_my)/elapsed_int.Seconds(), cpuPercent))
 		f.Sync()
+		intervalTime = time.Now()
+		atomic.StoreUint64(&count, 0)
 	}
 	log.Println("NUMBER ISSUED ", count_my)
 	return res, nil
