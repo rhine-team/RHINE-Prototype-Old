@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"path/filepath"
@@ -35,6 +36,8 @@ var zoneFixed = ".benchmark.ch"
 var childkeyPrefix = "CHILDPK_"
 var parentKeyPrefix = "PARENTSK_"
 var parentCertPrefix = "PARENTCERT_"
+var counterDone uint64
+var counterSend uint64
 
 func main() {
 	fmt.Println("The following arguments needed: [ChildConfigPath (1)] [ChildKeyFileDir 2] [RequestRate 3] [Consoleoff 4]")
@@ -124,7 +127,7 @@ func main() {
 	defer conni.Close()
 
 	count := 0
-	startTime := time.Now()
+	//startTime := time.Now()
 	intervalTime := time.Now()
 	for i, name := range childNames {
 		go runChild(os.Args[1], name, childKeyPath[i], noout, conni, connCA, cof)
@@ -138,10 +141,17 @@ func main() {
 		}
 		if true {
 			if time.Since(intervalTime) > time.Second*5 {
-				elapsed := time.Since(startTime)
+				elapsed := time.Since(intervalTime)
 				intervalTime = time.Now()
-				fmt.Println("Sending rate: ", float64(count)/elapsed.Seconds())
+				fmt.Println("Go routine start rate: ", float64(count)/elapsed.Seconds())
+
 				count = 0
+				ui := atomic.LoadUint64(&counterSend)
+				uil := atomic.LoadUint64(&counterDone)
+				fmt.Println("Sending to CA rate: ", float64(ui)/elapsed.Seconds())
+				fmt.Println("Finished deleg  rate: ", float64(uil)/elapsed.Seconds())
+				atomic.StoreUint64(&counterDone, 0)
+				atomic.StoreUint64(&counterSend, 0)
 			}
 		}
 
@@ -268,6 +278,8 @@ func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOf
 		}
 	*/
 
+	atomic.AddUint64(&counterSend, 1)
+
 	log.Println("Parent certificate parsed and parent signed CSR is valid")
 	log.Println("Forwarding response to CA for certificate request")
 
@@ -288,6 +300,7 @@ func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOf
 		//log.Fatalf("Negative response from CA: %v", err)
 	}
 	log.Println("Received response from CA", rCA)
+	atomic.AddUint64(&counterDone, 1)
 
 	/*
 		// Parse received certificate
