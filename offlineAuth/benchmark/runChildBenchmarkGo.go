@@ -18,7 +18,7 @@ import (
 	"github.com/rhine-team/RHINE-Prototype/offlineAuth/rhine"
 
 	//"golang.org/x/exp/slices"
-	"github.com/google/certificate-transparency-go/x509"
+	//"github.com/google/certificate-transparency-go/x509"
 	//"github.com/google/certificate-transparency-go/x509util"
 	_ "github.com/rhine-team/RHINE-Prototype/offlineAuth/cbor"
 	"github.com/rhine-team/RHINE-Prototype/offlineAuth/components/ca"
@@ -123,12 +123,14 @@ func main() {
 	log.Println("Established connection to Parent at: ", cof.ParentServerAddr)
 	defer conni.Close()
 
+	count := 0
 	for i, name := range childNames {
-		go runChild(os.Args[1], name, childKeyPath[i], noout, conni, connCA)
+		go runChild(os.Args[1], name, childKeyPath[i], noout, conni, connCA, cof)
 		if !noout {
 			log.Println("Started go routine, ", i)
 		}
 		time.Sleep(time.Duration(sleeptime) * time.Microsecond)
+		count += 1
 		if !noout {
 			log.Println("Sleep")
 		}
@@ -158,20 +160,22 @@ func main() {
 
 }
 
-func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOff bool, connec *grpc.ClientConn, conna *grpc.ClientConn) {
+func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOff bool, connec *grpc.ClientConn, conna *grpc.ClientConn, cof rhine.ZoneConfig) {
 	if consoleOff {
 		rhine.DisableConsoleOutput()
 	}
 
-	var timeout = time.Second * 2
+	var timeout = time.Second * 10
 
-	// Parse config
-	var errparse error
-	cof, errparse := rhine.LoadZoneConfig(confPath)
-	if errparse != nil {
-		return
-		//log.Fatalf("Could not parse the config file.")
-	}
+	/*
+		// Parse config
+		var errparse error
+		cof, errparse := rhine.LoadZoneConfig(confPath)
+		if errparse != nil {
+			return
+			//log.Fatalf("Could not parse the config file.")
+		}
+	*/
 
 	// Overwrite config if needed
 	if ZoneName != "" {
@@ -230,23 +234,29 @@ func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOf
 	//conn.Close()
 
 	// Parse the response
-	apv := &rhine.RhineSig{
-		Data:      r.Approvalcommit.Data,
-		Signature: r.Approvalcommit.Sig,
-	}
+	/*
+		apv := &rhine.RhineSig{
+			Data:      r.Approvalcommit.Data,
+			Signature: r.Approvalcommit.Sig,
+		}
+	*/
 
 	// Parse parent certificate
-	pcertp, certerr := x509.ParseCertificate(r.Rcertp)
-	if certerr != nil {
-		return
-		//log.Fatalf("Certificate Parsing failure: %v", certerr)
-	}
+	/*
+		pcertp, certerr := x509.ParseCertificate(r.Rcertp)
+		if certerr != nil {
+			return
+			//log.Fatalf("Certificate Parsing failure: %v", certerr)
+		}
+	*/
 
-	// Check wheter acsr is valid
-	if !apv.Verify(pcertp.PublicKey) {
-		return
-		//log.Fatal("Checking acsr failed")
-	}
+	/*
+		// Check wheter acsr is valid
+		if !apv.Verify(pcertp.PublicKey) {
+			return
+			//log.Fatal("Checking acsr failed")
+		}
+	*/
 
 	log.Println("Parent certificate parsed and parent signed CSR is valid")
 	log.Println("Forwarding response to CA for certificate request")
