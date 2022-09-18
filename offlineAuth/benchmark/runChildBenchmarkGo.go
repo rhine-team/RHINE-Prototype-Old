@@ -115,12 +115,16 @@ func main() {
 		//log.Fatalf("Could not parse the config file.")
 	}
 
+	connCA := rhine.GetGRPCConn(cof.CAServerAddr)
+
+	defer connCA.Close()
+
 	conni := rhine.GetGRPCConn(cof.ParentServerAddr)
 	log.Println("Established connection to Parent at: ", cof.ParentServerAddr)
 	defer conni.Close()
 
 	for i, name := range childNames {
-		go runChild(os.Args[1], name, childKeyPath[i], noout, conni)
+		go runChild(os.Args[1], name, childKeyPath[i], noout, conni, connCA)
 		if !noout {
 			log.Println("Started go routine, ", i)
 		}
@@ -154,7 +158,7 @@ func main() {
 
 }
 
-func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOff bool, connec *grpc.ClientConn) {
+func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOff bool, connec *grpc.ClientConn, conna *grpc.ClientConn) {
 	if consoleOff {
 		rhine.DisableConsoleOutput()
 	}
@@ -253,10 +257,7 @@ func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOf
 		Sig:  r.Approvalcommit.Sig,
 	}
 
-	connCA := rhine.GetGRPCConn(cof.CAServerAddr)
-
-	defer connCA.Close()
-	cca := ca.NewCAServiceClient(connCA)
+	cca := ca.NewCAServiceClient(conna)
 
 	// Send delegation request to the  CA server
 	ctxca, _ := context.WithTimeout(context.Background(), timeout)
