@@ -38,6 +38,7 @@ var parentKeyPrefix = "PARENTSK_"
 var parentCertPrefix = "PARENTCERT_"
 var counterDone uint64
 var counterSend uint64
+var counterGo uint64
 
 func main() {
 	fmt.Println("The following arguments needed: [ChildConfigPath (1)] [ChildKeyFileDir 2] [RequestRate 3] [Consoleoff 4]")
@@ -129,18 +130,10 @@ func main() {
 	count := 0
 	//startTime := time.Now()
 	intervalTime := time.Now()
-	for i, name := range childNames {
-		go runChild(os.Args[1], name, childKeyPath[i], noout, conni, connCA, cof)
-		if !noout {
-			log.Println("Started go routine, ", i)
-		}
-		time.Sleep(time.Duration(sleeptime) * time.Microsecond)
-		count += 1
-		if !noout {
-			log.Println("Sleep")
-		}
+
+	go func() {
 		if true {
-			if time.Since(intervalTime) > time.Second*5 {
+			for true {
 				elapsed := time.Since(intervalTime)
 				intervalTime = time.Now()
 				fmt.Println("Go routine start rate: ", float64(count)/elapsed.Seconds())
@@ -148,11 +141,26 @@ func main() {
 				count = 0
 				ui := atomic.LoadUint64(&counterSend)
 				uil := atomic.LoadUint64(&counterDone)
+				started := atomic.LoadUint64(&counterGo)
 				fmt.Println("Sending to CA rate: ", float64(ui)/elapsed.Seconds())
 				fmt.Println("Finished deleg  rate: ", float64(uil)/elapsed.Seconds())
+				fmt.Println("STARTED GO ROUTINES: ", float64(started)/elapsed.Seconds())
 				atomic.StoreUint64(&counterDone, 0)
 				atomic.StoreUint64(&counterSend, 0)
+				atomic.StoreUint64(&counterGo, 0)
+				time.Sleep(5 * time.Second)
 			}
+		}
+	}()
+
+	for i, name := range childNames {
+		go runChild(os.Args[1], name, childKeyPath[i], noout, conni, connCA, cof)
+		if !noout {
+			log.Println("Started go routine, ", i)
+		}
+		time.Sleep(time.Duration(sleeptime) * time.Microsecond)
+		if !noout {
+			log.Println("Sleep")
 		}
 
 	}
@@ -184,6 +192,8 @@ func runChild(confPath string, ZoneName string, PrivateKeyPath string, consoleOf
 	if consoleOff {
 		rhine.DisableConsoleOutput()
 	}
+
+	atomic.AddUint64(&counterGo, 1)
 
 	var timeout = time.Second * 10
 
