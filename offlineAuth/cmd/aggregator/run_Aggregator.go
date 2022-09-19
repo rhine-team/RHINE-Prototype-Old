@@ -26,7 +26,7 @@ var testParentZone string
 var testCertPath string
 var parentCertDirectoryPath string
 var consoleOff bool
-var timeout = time.Second * 30
+var timeout = time.Second * 300
 
 var rootCmd = &cobra.Command{
 	Use:   "run_Aggregator",
@@ -52,7 +52,11 @@ var rootCmd = &cobra.Command{
 			log.Fatalf("Listen failed: %v", err)
 		}
 
-		s := grpc.NewServer()
+		s := grpc.NewServer(
+			grpc.MaxMsgSize(rhine.MaxMsg),
+			grpc.MaxRecvMsgSize(rhine.MaxMsg),
+			grpc.MaxSendMsgSize(rhine.MaxMsg),
+		)
 		pf.RegisterAggServiceServer(s, &aggserver.AggServer{AggManager: aggr})
 
 		log.Println("Rhine Aggregator server online at: ", cof.ServerAddress)

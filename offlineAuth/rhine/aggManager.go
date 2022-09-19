@@ -34,8 +34,9 @@ type AggManager struct {
 	DB *badger.DB
 
 	// Logres structures
-	LogresData  cmap.ConcurrentMap[chan *LogresMsg]
-	LogresRound cmap.ConcurrentMap[int]
+	LogresData        cmap.ConcurrentMap[chan *LogresMsg]
+	LogresRound       cmap.ConcurrentMap[int]
+	LogresCurrentSeen cmap.ConcurrentMap[[]*Lreq]
 }
 
 type AggConfig struct {
@@ -167,15 +168,19 @@ func NewAggManager(config AggConfig) *AggManager {
 		}
 	}
 
+	LogresCurrentSeen := cmap.New[[]*Lreq]()
+
 	// Logres stuff
 	LogresData := cmap.New[chan *LogresMsg]()
 	for _, logr := range myagg.AggList {
 		LogresData.Set(logr, make(chan *LogresMsg, 100))
 	}
+	LogresData.Set("test", make(chan *LogresMsg, 100))
 
 	LogresRound := cmap.New[int]()
 	myagg.LogresData = LogresData
 	myagg.LogresRound = LogresRound
+	myagg.LogresCurrentSeen = LogresCurrentSeen
 	return &myagg
 }
 

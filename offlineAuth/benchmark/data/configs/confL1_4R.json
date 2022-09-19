@@ -14,5 +14,5 @@
     "CAServerAddr" : "localhost:10001",
     "CACertificatePath" : "data/certs/roots/CACert.pem",
     
-    "KeyValueDBDirectory" : "data/temp/databases/AggregDatabase23"
+    "KeyValueDBDirectory" : "data/temp/databases/AggregDatabase"
 }

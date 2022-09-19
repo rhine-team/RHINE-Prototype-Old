@@ -37,6 +37,7 @@ import (
 )
 
 var measureTimes = true
+var MaxMsg = 600700118
 
 //var measureCore = 4
 
@@ -671,7 +672,7 @@ func GetValueFromDB(db *badger.DB, key []byte) ([]byte, error) {
 }
 
 func GetGRPCConn(addr string) *grpc.ClientConn {
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultCallOptions(grpc.CallContentSubtype(cbor.CBOR{}.Name())))
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(MaxMsg), grpc.MaxCallSendMsgSize(MaxMsg), grpc.CallContentSubtype(cbor.CBOR{}.Name())))
 	if err != nil {
 		log.Println("Could not connect: %v", err)
 		return nil

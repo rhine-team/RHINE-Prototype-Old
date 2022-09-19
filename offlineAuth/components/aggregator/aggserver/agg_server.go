@@ -1,6 +1,7 @@
 package aggserver
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -17,7 +18,9 @@ import (
 
 var ft1 *os.File
 var measureT = false
-var timeout = time.Second * 30
+var timeout = time.Second * 120
+var startTime time.Time
+var f = 2
 
 type AggServer struct {
 	pf.UnimplementedAggServiceServer
@@ -305,8 +308,37 @@ func (s *AggServer) Logging(ctx context.Context, in *pf.LoggingRequest) (*pf.Log
 func (s *AggServer) StartLogres(ctx context.Context, in *pf.StartLogresRequest) (*pf.StartLogresResponse, error) {
 	res := &pf.StartLogresResponse{}
 
+	startTime = time.Now()
+
+	lri := []*rhine.Lreq{}
+	count := 0
+	for count < 100000 { //100000 {
+
+		conf := &rhine.Confirm{
+			EntityName:   s.AggManager.Agg.Name,
+			NdsHashBytes: []byte("23333333333333333333333333333333333333333"),
+		}
+		conf2 := &rhine.Confirm{
+			EntityName:   s.AggManager.Agg.Name,
+			NdsHashBytes: []byte("23333333333333333333333333333333333333333"),
+		}
+		conf3 := &rhine.Confirm{
+			EntityName:   s.AggManager.Agg.Name,
+			NdsHashBytes: []byte("23333333333333333333333333333333333333333"),
+		}
+		conf4 := &rhine.Confirm{
+			EntityName:   s.AggManager.Agg.Name,
+			NdsHashBytes: []byte("23333333333333333333333333333333333333333"),
+		}
+		atts := []*rhine.Confirm{conf, conf2, conf3, conf4}
+		i := &rhine.Lreq{Logger: s.AggManager.Agg.Name, Atts: atts, Nds: &rhine.Nds{Nds: rhine.NdsToSign{TbsCert: []byte("testestetseafefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwef")}}}
+		i.SignLreq(s.AggManager.GetPrivKey())
+		lri = append(lri, i)
+		count = count + 1
+	}
+
 	nms := &rhine.LogresMsg{
-		Lr:     []*rhine.Lreq{&rhine.Lreq{Logger: s.AggManager.Agg.Name}, &rhine.Lreq{Logger: s.AggManager.Agg.Name}},
+		Lr:     lri,
 		Entity: s.AggManager.Agg.Name,
 	}
 	nms.Sign(s.AggManager.GetPrivKey())
@@ -330,6 +362,7 @@ func (s *AggServer) StartLogres(ctx context.Context, in *pf.StartLogresRequest) 
 		logger := logger
 
 		// Create connections and clients, remember to reuse later
+		//TODO OPTIMIZE THIS
 		conn := rhine.GetGRPCConn(logger)
 		defer conn.Close()
 		clientsLogger[i] = pf.NewAggServiceClient(conn)
@@ -353,23 +386,24 @@ func (s *AggServer) StartLogres(ctx context.Context, in *pf.StartLogresRequest) 
 }
 
 func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) (*pf.LogresValueResponse, error) {
-	f := 1
 
 	res := &pf.LogresValueResponse{}
 
 	msg, _ := rhine.LogresMsgFromBytes(in.Msg)
 
+	logresdatakey := "test" //msg.Entity
+
 	log.Println("Received Logres Value")
 	var round int
 	// Check round
-	r, ok := s.AggManager.LogresRound.Get("Round" + msg.Entity)
+	r, ok := s.AggManager.LogresRound.Get("Round" + logresdatakey)
 	if ok {
 		round = r
 	} else {
 		round = 0
 	}
 
-	channel, oklogres := s.AggManager.LogresData.Get(msg.Entity)
+	channel, oklogres := s.AggManager.LogresData.Get(logresdatakey)
 	log.Println("Channel data found: ", oklogres)
 	channel <- msg
 	log.Println("After channel")
@@ -378,32 +412,77 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 	log.Println("Channel", len(channel))
 	if len(channel) == len(s.AggManager.AggList)-1 {
 		log.Println("Full channel in round", round)
+		valid_input := []*rhine.Lreq{}
 
 		// Logres Checking
-		//TODO
-		// RHINE DATA EVal
-		// TODO
-		round += 1
-
 		// Empty channel
 		for len(channel) > 0 {
-			<-channel
+			logresmsg := <-channel
+			// Verify the message
+			reserr := logresmsg.Verify(s.AggManager.AggMap[logresmsg.Entity])
+			log.Println("Res", reserr)
+			for ol, lreq := range logresmsg.Lr {
+				if ol > 100000/4 {
+					break
+				}
+				resveri := lreq.VerifyLreq(s.AggManager.AggMap[lreq.Logger])
+				log.Println("Res", resveri)
+				// Verify atts
+				boolres := rhine.VerifyAggConfirmSlicePtr(lreq.Atts, s.AggManager.AggMap)
+				log.Println("Res", boolres)
+				valid_input = append(valid_input, lreq)
+			}
+
 		}
 
+		// Get witnessed
+		alllreqsseen, oklo := s.AggManager.LogresCurrentSeen.Get(logresdatakey)
+		var w []*rhine.Lreq
+
+		for _, ol := range valid_input {
+			res := bytes.Compare(ol.Nds.Nds.TbsCert, ol.Atts[0].NdsHashBytes)
+			log.Println("Comp", res)
+		}
+
+		if !oklo {
+			w = []*rhine.Lreq{}
+			w = valid_input
+		} else {
+			w = alllreqsseen
+		}
+		round += 1
+
+		// Sign seen stuff
+		newmsg := &rhine.LogresMsg{
+			Lr:     valid_input,
+			Entity: s.AggManager.Agg.Name,
+		}
+
+		newmsg.Sign(s.AggManager.GetPrivKey())
+		bytm, _ := newmsg.ToBytes()
+
+		// Set seen
+		s.AggManager.LogresCurrentSeen.Set(logresdatakey, w)
+
+		log.Println("====THIS IS ROUND=== ", round)
 		if round == f+1 {
 			// Break off protocol
+			elapsed := time.Since(startTime)
+			ft, _ := os.Create("EndingTime" + ".csv")
+			ft.WriteString(fmt.Sprintf("%d\n", elapsed.Milliseconds()))
+			ft.Sync()
 			log.Println("We ran all rounds with success!")
 			return res, nil
 		}
 
 		// Advance round
-		s.AggManager.LogresRound.Set("Round"+msg.Entity, round)
+		s.AggManager.LogresRound.Set("Round"+logresdatakey, round)
 		// Send out values
 		// Send to all passiv nodes
 		clientsLogger := make([]pf.AggServiceClient, len(s.AggManager.AggList))
 		// Make connections for all designated loggers
 
-		logresreq := &pf.LogresValueRequest{Msg: in.Msg}
+		logresreq := &pf.LogresValueRequest{Msg: bytm}
 
 		var wg sync.WaitGroup
 		wg.Add(len(clientsLogger))

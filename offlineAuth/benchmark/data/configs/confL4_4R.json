@@ -1,7 +1,7 @@
 {
     "PrivateKeyAlgorithm": "Ed25519",
     "PrivateKeyPath": "data/keys/Agg1.pem",
-    "ServerAddress" : "localhost:50050",
+    "ServerAddress" : "localhost:50053",
     "RootCertsPath" : "data/certs/roots/",
     
 	"LogsName" :       ["localhost:50016", "localhost:50017"],
@@ -14,5 +14,5 @@
     "CAServerAddr" : "localhost:10001",
     "CACertificatePath" : "data/certs/roots/CACert.pem",
     
-    "KeyValueDBDirectory" : "data/temp/databases/AggregDatabase23"
+    "KeyValueDBDirectory" : "data/temp/databases/AggregDatabase24"
 }
