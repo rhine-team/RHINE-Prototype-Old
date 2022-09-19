@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"sync/atomic"
 	"time"
@@ -253,8 +254,6 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 
 	log.Println("ATTS list verified")
 
-	//TODO
-
 	if measureT {
 		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
 	}
@@ -297,7 +296,11 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	rlogres, errdlog := clientsLogger[0].Logging(ctx, &agg.LoggingRequest{Lreq: lreqbytes})
+	max := len(clientsLogger) - 1
+	rand.Seed(time.Now().UnixNano())
+	randLoggerInd := rand.Intn(max + 1)
+
+	rlogres, errdlog := clientsLogger[randLoggerInd].Logging(ctx, &agg.LoggingRequest{Lreq: lreqbytes})
 	if errdlog != nil {
 		log.Printf("Logging request failed!", errdlog)
 		return res, errdlog
@@ -317,7 +320,6 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		return res, errors.New("A LogConfirm was not correctly signed")
 	}
 	log.Println("CA: All LogConfirm checked and valid")
-	//TODO Match Lreq lc
 
 	// Issue Cert!
 	chilcert := s.Ca.IssueRHINECert(preRC, psr)
