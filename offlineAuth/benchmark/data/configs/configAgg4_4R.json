@@ -1,6 +1,6 @@
 {
     "PrivateKeyAlgorithm": "Ed25519",
-    "PrivateKeyPath": "data/keys/Agg2.pem",
+    "PrivateKeyPath": "data/keys/Agg4.pem",
     "ServerAddress" : "10.114.32.7:50053",
     "RootCertsPath" : "data/certs/roots/",
     
@@ -14,6 +14,6 @@
     "CAServerAddr" : "10.114.32.4:10001",
     "CACertificatePath" : "data/certs/roots/CACert.pem",
     
-    "KeyValueDBDirectory" : "data/temp/databases/AggregDatabase2"
+    "KeyValueDBDirectory" : "data/temp/databases/AggregDatabase4"
 }
 
