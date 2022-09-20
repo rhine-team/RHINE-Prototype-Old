@@ -431,7 +431,6 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 				// Verify atts
 				boolres := rhine.VerifyAggConfirmSlicePtr(lreq.Atts, s.AggManager.AggMap)
 				log.Println("Res", boolres)
-				valid_input = append(valid_input, lreq)
 
 				if round <= 1 {
 					valid_input = append(valid_input, lreq)
