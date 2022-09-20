@@ -316,18 +316,15 @@ func (s *AggServer) StartLogres(ctx context.Context, in *pf.StartLogresRequest) 
 	count := 0
 	for count < 100000 { //100000 {
 
-		ndi := &rhine.Nds{Nds: rhine.NdsToSign{Exp: time.Now(), TbsCert: []byte("tesdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddstest3222222222222222222222222222222222222222222222222222222222222222222222222222222222222etseafefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwefwef")}}
+		ndi := &rhine.Nds{Nds: rhine.NdsToSign{Exp: time.Now(), TbsCert: []byte("TetTetsTettsTetsTetss")}}
 		ndi.Sign(s.AggManager.GetPrivKey())
 
 		//conf, _ := rhine.CreateConfirm(0, ndi, s.AggManager.Agg.Name, rhine.DSum{}, s.AggManager.GetPrivKey())
 		conf, _ := rhine.CreateConfirm(0, ndi, s.AggManager.Agg.Name, rhine.DSum{}, s.AggManager.GetPrivKey())
 		conf2, _ := rhine.CreateConfirm(0, ndi, s.AggManager.Agg.Name, rhine.DSum{}, s.AggManager.GetPrivKey())
-		conf3, _ := rhine.CreateConfirm(0, ndi, s.AggManager.Agg.Name, rhine.DSum{}, s.AggManager.GetPrivKey())
-		conf4, _ := rhine.CreateConfirm(0, ndi, s.AggManager.Agg.Name, rhine.DSum{}, s.AggManager.GetPrivKey())
-		conf5, _ := rhine.CreateConfirm(0, ndi, s.AggManager.Agg.Name, rhine.DSum{}, s.AggManager.GetPrivKey())
 		//conf6, _ := CreateConfirm(0, ndi, s.AggManager.Agg.Name, rhine.DSum{}, s.AggManager.GetPrivKey())
 
-		atts := []*rhine.Confirm{conf, conf2, conf3, conf4, conf5}
+		atts := []*rhine.Confirm{conf, conf2}
 		i := &rhine.Lreq{Logger: s.AggManager.Agg.Name, Atts: atts, Nds: ndi}
 		i.SignLreq(s.AggManager.GetPrivKey())
 		lri = append(lri, i)
