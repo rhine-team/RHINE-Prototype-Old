@@ -20,7 +20,7 @@ var ft1 *os.File
 var measureT = false
 var timeout = time.Second * 120
 var startTime time.Time
-var f = 2
+var f = 4
 
 type AggServer struct {
 	pf.UnimplementedAggServiceServer
@@ -309,10 +309,13 @@ func (s *AggServer) StartLogres(ctx context.Context, in *pf.StartLogresRequest) 
 	res := &pf.StartLogresResponse{}
 
 	startTime = time.Now()
+	if _, err := os.Stat("EndingTime" + ".csv"); !errors.Is(err, os.ErrNotExist) {
+		os.Remove("EndingTime" + ".csv")
+	}
 
 	lri := []*rhine.Lreq{}
 	count := 0
-	for count < 100000 { //100000 {
+	for count < 10 { //100000 {
 
 		conf := &rhine.Confirm{
 			EntityName:   s.AggManager.Agg.Name,
@@ -391,26 +394,26 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 
 	msg, _ := rhine.LogresMsgFromBytes(in.Msg)
 
-	logresdatakey := "test" //msg.Entity
+	//logresdatakey := "test" //msg.Entity
 
 	log.Println("Received Logres Value")
 	var round int
 	// Check round
-	r, ok := s.AggManager.LogresRound.Get("Round" + logresdatakey)
+	r, ok := s.AggManager.LogresRound.Get("Round" + msg.Entity)
 	if ok {
 		round = r
 	} else {
-		round = 0
+		round = 1
 	}
 
-	channel, oklogres := s.AggManager.LogresData.Get(logresdatakey)
+	channel, oklogres := s.AggManager.LogresData.Get(msg.Entity)
 	log.Println("Channel data found: ", oklogres)
 	channel <- msg
 	log.Println("After channel")
 
 	// Check if this round is finished
 	log.Println("Channel", len(channel))
-	if len(channel) == len(s.AggManager.AggList)-1 {
+	if len(channel) == len(s.AggManager.AggList)-1 || round == 1 {
 		log.Println("Full channel in round", round)
 		valid_input := []*rhine.Lreq{}
 
@@ -436,7 +439,7 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 		}
 
 		// Get witnessed
-		alllreqsseen, oklo := s.AggManager.LogresCurrentSeen.Get(logresdatakey)
+		alllreqsseen, oklo := s.AggManager.LogresCurrentSeen.Get(msg.Entity)
 		var w []*rhine.Lreq
 
 		for _, ol := range valid_input {
@@ -454,35 +457,38 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 
 		// Sign seen stuff
 		newmsg := &rhine.LogresMsg{
-			Lr:     valid_input,
-			Entity: s.AggManager.Agg.Name,
+			Lr: valid_input,
+			//Entity: s.AggManager.Agg.Name,
+			Entity: msg.Entity,
 		}
 
 		newmsg.Sign(s.AggManager.GetPrivKey())
 		bytm, _ := newmsg.ToBytes()
 
 		// Set seen
-		s.AggManager.LogresCurrentSeen.Set(logresdatakey, w)
-
-		log.Println("====THIS IS ROUND=== ", round)
-		if round == f+1 {
-			// Break off protocol
-			elapsed := time.Since(startTime)
-			ft, _ := os.Create("EndingTime" + ".csv")
-			ft.WriteString(fmt.Sprintf("%d\n", elapsed.Milliseconds()))
-			ft.Sync()
-			log.Println("We ran all rounds with success!")
-			return res, nil
-		}
+		s.AggManager.LogresCurrentSeen.Set(msg.Entity, w)
 
 		// Advance round
-		s.AggManager.LogresRound.Set("Round"+logresdatakey, round)
+		s.AggManager.LogresRound.Set("Round"+msg.Entity, round)
 		// Send out values
 		// Send to all passiv nodes
 		clientsLogger := make([]pf.AggServiceClient, len(s.AggManager.AggList))
 		// Make connections for all designated loggers
 
 		logresreq := &pf.LogresValueRequest{Msg: bytm}
+
+		log.Println("====THIS IS ROUND=== ", round)
+		if round >= f+1 {
+			// Break off protocol
+			elapsed := time.Since(startTime)
+			ft, _ := os.Create("EndingTime" + ".csv")
+			ft.WriteString(fmt.Sprintf("%d\n", elapsed.Milliseconds()))
+			ft.Sync()
+			fmt.Println("We ran all rounds with success! :", msg.Entity)
+			log.Println("We ran all rounds with success!")
+
+			return res, nil
+		}
 
 		var wg sync.WaitGroup
 		wg.Add(len(clientsLogger))
