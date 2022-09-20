@@ -18,7 +18,7 @@ import (
 
 var ft1 *os.File
 var measureT = false
-var timeout = time.Second * 120
+var timeout = time.Second * 7200
 var startTime time.Time
 var f = 4
 

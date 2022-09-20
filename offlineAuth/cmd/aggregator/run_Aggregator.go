@@ -26,7 +26,7 @@ var testParentZone string
 var testCertPath string
 var parentCertDirectoryPath string
 var consoleOff bool
-var timeout = time.Second * 300
+var timeout = time.Second * 7200
 
 var rootCmd = &cobra.Command{
 	Use:   "run_Aggregator",
