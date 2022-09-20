@@ -426,7 +426,7 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 			log.Println("Res", reserr)
 			for ol, lreq := range logresmsg.Lr {
 				if round > 1 {
-					if ol > 100000 {
+					if ol > 100000/(round+2) {
 						break
 					}
 				}
