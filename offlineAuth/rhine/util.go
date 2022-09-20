@@ -37,7 +37,7 @@ import (
 )
 
 var measureTimes = true
-var MaxMsg = 600700118
+var MaxMsg = 223372036854775807
 
 //var measureCore = 4
 
