@@ -121,12 +121,16 @@ var StartLogres = &cobra.Command{
 
 		logresreq := &pf.StartLogresRequest{}
 		var wg sync.WaitGroup
-		wg.Add(len(clientsLogger))
+		wg.Add(1) len(clientsLogger)
 
 		for i, logger := range AggManager.AggList {
 			log.Println("Agglist")
 			i := i
 			logger := logger
+
+			if i > 0 {
+				break
+			}
 
 			// Create connections and clients, remember to reuse later
 			conn := rhine.GetGRPCConn(logger)
