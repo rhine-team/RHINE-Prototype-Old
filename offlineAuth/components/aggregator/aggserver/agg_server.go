@@ -315,7 +315,7 @@ func (s *AggServer) StartLogres(ctx context.Context, in *pf.StartLogresRequest) 
 
 	lri := []*rhine.Lreq{}
 	count := 0
-	for count < 10 { //100000 {
+	for count < 100000 { //100000 {
 
 		conf := &rhine.Confirm{
 			EntityName:   s.AggManager.Agg.Name,
