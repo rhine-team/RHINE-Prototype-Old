@@ -357,13 +357,13 @@ func (s *AggServer) StartLogres(ctx context.Context, in *pf.StartLogresRequest) 
 
 		// Create connections and clients, remember to reuse later
 		//TODO OPTIMIZE THIS
-		conn := rhine.GetGRPCConn(logger)
-		defer conn.Close()
-		clientsLogger[i] = pf.NewAggServiceClient(conn)
 
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
+			conn := rhine.GetGRPCConn(logger)
+			defer conn.Close()
+			clientsLogger[i] = pf.NewAggServiceClient(conn)
 
 			_, err := clientsLogger[i].LogresValue(ctx, logresreq)
 			if err != nil {
@@ -389,6 +389,10 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 
 	msg, _ := rhine.LogresMsgFromBytes(in.Msg)
 
+	if s.AggManager.Agg.Name == msg.Entity {
+		return res, nil
+	}
+
 	f := s.AggManager.F
 
 	//logresdatakey := "test" //msg.Entity
@@ -410,7 +414,7 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 
 	// Check if this round is finished
 	log.Println("Channel", len(channel))
-	if len(channel) == len(s.AggManager.AggList)-1 || round == 1 {
+	if len(channel) == len(s.AggManager.AggList)-2 || round == 1 {
 		log.Println("Full channel in round", round)
 		valid_input := []*rhine.Lreq{}
 
@@ -491,25 +495,24 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 			return res, nil
 		}
 
-		var wg sync.WaitGroup
-		wg.Add(len(clientsLogger))
+		//var wg sync.WaitGroup
+		//wg.Add(len(clientsLogger))
 
 		for i, logger := range s.AggManager.AggList {
-			if logger == s.AggManager.Agg.Name {
+			if logger == s.AggManager.Agg.Name || logger == msg.Entity {
 				continue
 			}
 			i := i
 			logger := logger
 
-			// Create connections and clients, remember to reuse later
-			conn := rhine.GetGRPCConn(logger)
-			defer conn.Close()
-			clientsLogger[i] = pf.NewAggServiceClient(conn)
-
 			go func() {
-				defer wg.Done()
-				ctx, cancel := context.WithTimeout(context.Background(), timeout)
-				defer cancel()
+				// Create connections and clients, remember to reuse later
+				conn := rhine.GetGRPCConn(logger)
+				defer conn.Close()
+				clientsLogger[i] = pf.NewAggServiceClient(conn)
+				//defer wg.Done()
+				ctx, _ := context.WithTimeout(context.Background(), timeout) //cancel
+				//defer cancel()
 				//log.Println("Cancel", cancel)
 
 				_, err := clientsLogger[i].LogresValue(ctx, logresreq)
@@ -520,7 +523,8 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 			}()
 
 		}
-		wg.Wait()
+		time.Sleep(1 * time.Second)
+		//wg.Wait()
 	}
 
 	return res, nil
