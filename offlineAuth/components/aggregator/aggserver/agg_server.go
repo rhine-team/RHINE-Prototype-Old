@@ -20,6 +20,7 @@ var ft1 *os.File
 var measureT = false
 var timeout = time.Second * 7200
 var startTime time.Time
+var started int
 
 type AggServer struct {
 	pf.UnimplementedAggServiceServer
@@ -307,7 +308,6 @@ func (s *AggServer) Logging(ctx context.Context, in *pf.LoggingRequest) (*pf.Log
 func (s *AggServer) StartLogres(ctx context.Context, in *pf.StartLogresRequest) (*pf.StartLogresResponse, error) {
 	res := &pf.StartLogresResponse{}
 
-	startTime = time.Now()
 	if _, err := os.Stat("EndingTime" + ".csv"); !errors.Is(err, os.ErrNotExist) {
 		os.Remove("EndingTime" + ".csv")
 	}
@@ -380,6 +380,10 @@ func (s *AggServer) StartLogres(ctx context.Context, in *pf.StartLogresRequest) 
 }
 
 func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) (*pf.LogresValueResponse, error) {
+	if started == 0 {
+		startTime = time.Now()
+		started = started + 1
+	}
 
 	res := &pf.LogresValueResponse{}
 
@@ -434,7 +438,8 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 		}
 
 		// Get witnessed
-		alllreqsseen, oklo := s.AggManager.LogresCurrentSeen.Get(msg.Entity)
+		//alllreqsseen, oklo := s.AggManager.LogresCurrentSeen.Get(msg.Entity)
+		oklo := true
 		var w []*rhine.Lreq
 
 		for _, ol := range valid_input {
@@ -446,8 +451,9 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 			w = []*rhine.Lreq{}
 			w = valid_input
 		} else {
-			w = alllreqsseen
+			w = []*rhine.Lreq{}
 		}
+		log.Println("W", w)
 		round += 1
 
 		// Sign seen stuff
@@ -461,7 +467,7 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 		bytm, _ := newmsg.ToBytes()
 
 		// Set seen
-		s.AggManager.LogresCurrentSeen.Set(msg.Entity, w)
+		//s.AggManager.LogresCurrentSeen.Set(msg.Entity, w)
 
 		// Advance round
 		s.AggManager.LogresRound.Set("Round"+msg.Entity, round)
