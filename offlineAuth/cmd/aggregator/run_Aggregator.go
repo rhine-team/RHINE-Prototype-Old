@@ -121,7 +121,7 @@ var StartLogres = &cobra.Command{
 
 		logresreq := &pf.StartLogresRequest{}
 		var wg sync.WaitGroup
-		wg.Add(1) len(clientsLogger)
+		wg.Add(1) //len(clientsLogger)
 
 		for i, logger := range AggManager.AggList {
 			log.Println("Agglist")
