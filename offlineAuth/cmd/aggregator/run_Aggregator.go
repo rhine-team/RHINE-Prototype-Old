@@ -25,6 +25,7 @@ var configPath string
 var testParentZone string
 var testCertPath string
 var parentCertDirectoryPath string
+var Finput int
 var consoleOff bool
 var timeout = time.Second * 7200
 
@@ -45,6 +46,8 @@ var rootCmd = &cobra.Command{
 
 		// Make a new Agg struct
 		aggr := rhine.NewAggManager(cof)
+
+		aggr.F = Finput
 
 		// Run the Agg
 		lis, err := net.Listen("tcp", cof.ServerAddress)
@@ -251,6 +254,7 @@ var AddDTBatch = &cobra.Command{
 func init() {
 	rootCmd.Flags().StringVar(&configPath, "config", "configs/configAgg.json", "ConfigPath")
 	rootCmd.Flags().BoolVar(&consoleOff, "nostd", false, "Disables standard output")
+	rootCmd.Flags().IntVar(&Finput, "f", 2, "Logres f")
 	WipeDB.Flags().StringVar(&configPath, "config", "configs/configAgg.json", "ConfigPath")
 	AddTestDT.Flags().StringVar(&configPath, "config", "configs/configAgg.json", "ConfigPath")
 	AddTestDT.Flags().StringVar(&testParentZone, "parent", "ethz.ch", "ParentZone")

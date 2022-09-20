@@ -37,6 +37,7 @@ type AggManager struct {
 	LogresData        cmap.ConcurrentMap[chan *LogresMsg]
 	LogresRound       cmap.ConcurrentMap[int]
 	LogresCurrentSeen cmap.ConcurrentMap[[]*Lreq]
+	F                 int
 }
 
 type AggConfig struct {

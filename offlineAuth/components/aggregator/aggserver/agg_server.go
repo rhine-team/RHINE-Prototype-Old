@@ -20,7 +20,6 @@ var ft1 *os.File
 var measureT = false
 var timeout = time.Second * 7200
 var startTime time.Time
-var f = 4
 
 type AggServer struct {
 	pf.UnimplementedAggServiceServer
@@ -394,6 +393,8 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 
 	msg, _ := rhine.LogresMsgFromBytes(in.Msg)
 
+	f := s.AggManager.F
+
 	//logresdatakey := "test" //msg.Entity
 
 	log.Println("Received Logres Value")
@@ -425,17 +426,18 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 			reserr := logresmsg.Verify(s.AggManager.AggMap[logresmsg.Entity])
 			log.Println("Res", reserr)
 			for ol, lreq := range logresmsg.Lr {
-				if round > 1 {
-					if ol > 100000/(round+2) {
-						break
-					}
-				}
 				resveri := lreq.VerifyLreq(s.AggManager.AggMap[lreq.Logger])
 				log.Println("Res", resveri)
 				// Verify atts
 				boolres := rhine.VerifyAggConfirmSlicePtr(lreq.Atts, s.AggManager.AggMap)
 				log.Println("Res", boolres)
 				valid_input = append(valid_input, lreq)
+
+				if round <= 1 {
+					valid_input = append(valid_input, lreq)
+				} else if ol <= 100000/(round+2) {
+					valid_input = append(valid_input, lreq)
+				}
 			}
 
 		}
