@@ -314,7 +314,7 @@ func (s *AggServer) StartLogres(ctx context.Context, in *pf.StartLogresRequest) 
 
 	lri := []*rhine.Lreq{}
 	count := 0
-	for count < 10000 { //100000 {
+	for count < 50000 { //100000 {
 
 		ndi := &rhine.Nds{Nds: rhine.NdsToSign{Exp: time.Now(), TbsCert: []byte("TetTetsTettsTetsTetss")}}
 		ndi.Sign(s.AggManager.GetPrivKey())
