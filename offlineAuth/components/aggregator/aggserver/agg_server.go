@@ -425,8 +425,10 @@ func (s *AggServer) LogresValue(ctx context.Context, in *pf.LogresValueRequest) 
 			reserr := logresmsg.Verify(s.AggManager.AggMap[logresmsg.Entity])
 			log.Println("Res", reserr)
 			for ol, lreq := range logresmsg.Lr {
-				if ol > 100000/4 {
-					break
+				if round > 1 {
+					if ol > 100000 {
+						break
+					}
 				}
 				resveri := lreq.VerifyLreq(s.AggManager.AggMap[lreq.Logger])
 				log.Println("Res", resveri)
