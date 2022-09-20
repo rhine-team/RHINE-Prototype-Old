@@ -6,11 +6,12 @@ import (
 	"crypto/rsa"
 
 	badger "github.com/dgraph-io/badger/v3"
-	cborv2 "github.com/fxamacker/cbor/v2"
+	//cborv2 "github.com/fxamacker/cbor/v2"
 	ct "github.com/google/certificate-transparency-go"
 	"github.com/google/certificate-transparency-go/x509"
 	"github.com/google/certificate-transparency-go/x509/pkix"
 	"github.com/google/certificate-transparency-go/x509util"
+
 	"github.com/rhine-team/RHINE-Prototype/offlineAuth/cbor"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -214,7 +215,7 @@ func GetParentZone(subzone string) string {
 
 // Serialize using CBOR
 func SerializeCBOR(data any) ([]byte, error) {
-	res, err := cborv2.Marshal(data)
+	res, err := cbor.MarshalS(data) //cborv2.Marshal(data)
 	if err != nil {
 		fmt.Println("Serialization error: ", err)
 		return res, err
@@ -224,7 +225,7 @@ func SerializeCBOR(data any) ([]byte, error) {
 
 // Deserialize using CBOR
 func DeserializeCBOR(bytes []byte, data any) error {
-	err := cborv2.Unmarshal(bytes, data)
+	err := cbor.UnmarshalS(bytes, data)
 	if err != nil {
 		fmt.Println("Deserialization error: ", err)
 		return err
