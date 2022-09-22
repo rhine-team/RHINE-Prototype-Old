@@ -7,7 +7,6 @@ import (
 	"errors"
 	"log"
 
-	//"reflect"
 	"time"
 
 	"github.com/google/certificate-transparency-go/x509"
@@ -53,19 +52,6 @@ func (n *Nds) VerifyNDS(pubKey any) error {
 		return err
 	}
 
-	// Check that rhinesig data matches NDS data
-	/*
-		if bytes.Compare(encNDS, n.Signednds.Data) != 0 {
-
-				ands, _ := DeserializeStructure[NdsToSign](encNDS)
-				bnds, _ := DeserializeStructure[NdsToSign](n.Signednds.Data)
-				log.Printf("Our freshly encoded nds %+v \n Decoded nds from message %+v ", ands, bnds)
-				//log.Printf("\n Bytes we computed %+v \n Bytes from the data %+v", message.Bytes(), n.Signednds.Data)
-				//log.Printf("Result of compare: ", bytes.Compare(encNDS, n.Signednds.Data))
-
-			return errors.New("Signed data not matching with NDS content")
-		}
-	*/
 	newRhineSig := &RhineSig{Data: encNDS, Signature: n.Signednds.Signature}
 
 	// Verify Signature
@@ -137,31 +123,6 @@ func (n *Nds) MatchWithConfirm(conf []Confirm) bool {
 	return res
 }
 
-// This function is used to gen bytes for signing
-/*
-func (n *Nds) NdsToSignBytes() ([]byte, error) {
-	hasher := sha256.New()
-
-
-	for _, a := range n.Nds.Agg {
-		hasher.Write([]byte(a))
-	}
-
-	hasher.Write([]byte(n.Nds.Zone.Name))
-	hasher.Write([]byte{byte(n.Nds.Al)})
-	hasher.Write(n.Nds.TbsCert)
-
-	// expiration time
-	if timeBinary, err := n.Nds.Exp.MarshalBinary(); err != nil {
-		return nil, err
-	} else {
-		hasher.Write(timeBinary)
-	}
-
-	return hasher.Sum(nil), nil
-}
-*/
-
 func (n *Nds) NdsToSignBytes() ([]byte, error) {
 	hasher := sha256.New()
 	bytes, err := n.NdsToBytes()
@@ -170,25 +131,6 @@ func (n *Nds) NdsToSignBytes() ([]byte, error) {
 	}
 	return hasher.Sum(bytes), nil
 }
-
-/*
-func (n *Nds) NdsToBytes() ([]byte, error) {
-	byt, err := SerializeStructure[Nds](*n)
-	if err != nil {
-		return []byte{}, err
-	}
-	return byt, nil
-}
-
-func BytesToNds(byt []byte) (*Nds, error) {
-	nds, err := DeserializeStructure[Nds](byt)
-	if err != nil {
-		return nil, nil
-	}
-	return &nds, nil
-}
-
-*/
 
 func (n *Nds) NdsToBytes() ([]byte, error) {
 	byt, err := SerializeCBOR(*n)

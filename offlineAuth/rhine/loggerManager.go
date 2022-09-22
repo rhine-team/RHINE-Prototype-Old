@@ -343,7 +343,7 @@ func (lm *LogManager) GetDSAfromAggregators() {
 	//log.Println("What aggreg gave us", r.DSAPayload)
 
 	// Add results to badger and to cache
-	// TODO add to cache
+
 	count := 0
 	counti := 0
 	for _, bytesdsa := range r.DSAPayload {

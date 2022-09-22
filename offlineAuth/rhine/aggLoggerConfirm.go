@@ -1,7 +1,6 @@
 package rhine
 
 import (
-	//"bytes"
 	"crypto/sha256"
 	"log"
 )
@@ -95,13 +94,6 @@ func (c *Confirm) VerifyConfirm(pubKey any) bool {
 		return false
 	}
 
-	/*
-		if bytes.Compare(resData, c.Rsig.Data) != 0 {
-			log.Println("Signed data not matching with Confirm content")
-			return false
-		}
-	*/
-
 	//log.Println("Confirm fully validated!")
 	return true
 }
@@ -109,7 +101,6 @@ func (c *Confirm) VerifyConfirm(pubKey any) bool {
 func VerifyAggConfirmSlice(clist []Confirm, aggMap map[string]Agg) bool {
 	res := true
 	for _, lc := range clist {
-		// TODO: Check existence in map
 		res = res && lc.VerifyConfirm(aggMap[lc.EntityName].Pubkey)
 	}
 	if !res {
@@ -121,7 +112,6 @@ func VerifyAggConfirmSlice(clist []Confirm, aggMap map[string]Agg) bool {
 func VerifyAggConfirmSlicePtr(clist []*Confirm, aggMap map[string]Agg) bool {
 	res := true
 	for _, lc := range clist {
-		// TODO: Check existence in map
 		res = res && lc.VerifyConfirm(aggMap[lc.EntityName].Pubkey)
 	}
 	if !res {
@@ -133,7 +123,6 @@ func VerifyAggConfirmSlicePtr(clist []*Confirm, aggMap map[string]Agg) bool {
 func VerifyLogConfirmSlice(clist []Confirm, logMap map[string]Log) bool {
 	res := true
 	for _, lc := range clist {
-		// TODO: Check existence in map
 		res = res && lc.VerifyConfirm(logMap[lc.EntityName].Pubkey)
 	}
 	if !res {

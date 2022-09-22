@@ -69,13 +69,6 @@ func (l *Lwit) VerifyLwit(pubKey any) bool {
 		return false
 	}
 
-	/*
-		if bytes.Compare(resData, l.Rsig.Data) != 0 {
-			log.Println("Signed data not matching with Log Witness content")
-			return false
-		}
-	*/
-
 	log.Println("Log witness fully validated!")
 	return true
 }

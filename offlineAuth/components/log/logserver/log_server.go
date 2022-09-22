@@ -3,10 +3,12 @@ package logserver
 import (
 	"context"
 	"errors"
-	"fmt"
+
+	//"fmt"
 	"log"
 	"os"
-	"time"
+
+	//"time"
 
 	"github.com/google/certificate-transparency-go/x509"
 	_ "github.com/rhine-team/RHINE-Prototype/offlineAuth/cbor"
@@ -47,16 +49,6 @@ func (s *LogServer) DSProofRet(ctx context.Context, in *pf.DSProofRetRequest) (*
 }
 
 func (s *LogServer) DemandLogging(ctx context.Context, in *pf.DemandLoggingRequest) (*pf.DemandLoggingResponse, error) {
-	if measureT && ft1 == nil {
-		ft1, _ = os.Create("LoggerTimeStatsM1" + ".csv")
-	}
-
-	var measureTimes time.Time
-	var elapsedTimes int64
-	if measureT {
-		elapsedTimes = 0
-		measureTimes = time.Now()
-	}
 
 	res := &pf.DemandLoggingResponse{}
 
@@ -108,24 +100,11 @@ func (s *LogServer) DemandLogging(ctx context.Context, in *pf.DemandLoggingReque
 		Rid: in.Rid,
 	}
 
-	//log.Println("Test success", psr)
-	if measureT {
-		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
-		ft1.WriteString(fmt.Sprintf("%d\n", elapsedTimes))
-	}
 	return res, nil
 }
 
 func (s *LogServer) SubmitACFM(ctx context.Context, in *pf.SubmitACFMRequest) (*pf.SubmitACFMResponse, error) {
-	if measureT && ft2 == nil {
-		ft2, _ = os.Create("LoggerTimeStatsM2" + ".csv")
-	}
-	var measureTimes time.Time
-	var elapsedTimes int64
-	if measureT {
-		elapsedTimes = 0
-		measureTimes = time.Now()
-	}
+
 	res := &pf.SubmitACFMResponse{}
 
 	aggConfirmList := []rhine.Confirm{}
@@ -179,11 +158,6 @@ func (s *LogServer) SubmitACFM(ctx context.Context, in *pf.SubmitACFMRequest) (*
 	}
 
 	log.Println("Logger: SCT created, send response")
-
-	if measureT {
-		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
-		ft2.WriteString(fmt.Sprintf("%d\n", elapsedTimes))
-	}
 
 	return res, nil
 

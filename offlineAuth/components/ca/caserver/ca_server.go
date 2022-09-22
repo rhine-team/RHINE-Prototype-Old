@@ -3,11 +3,13 @@ package caserver
 import (
 	"context"
 	"errors"
-	"fmt"
+
+	//"fmt"
 	"log"
 	"math/rand"
-	"os"
-	"sync/atomic"
+
+	//"os"
+	//"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -16,7 +18,8 @@ import (
 	_ "github.com/rhine-team/RHINE-Prototype/offlineAuth/cbor"
 	pf "github.com/rhine-team/RHINE-Prototype/offlineAuth/components/ca"
 	"github.com/rhine-team/RHINE-Prototype/offlineAuth/rhine"
-	"github.com/shirou/gopsutil/cpu"
+
+	//"github.com/shirou/gopsutil/cpu"
 
 	agg "github.com/rhine-team/RHINE-Prototype/offlineAuth/components/aggregator"
 	//logp "github.com/rhine-team/RHINE-Prototype/offlineAuth/components/log"
@@ -24,6 +27,8 @@ import (
 
 // Set timeout
 var timeout = time.Second * 30
+
+/*
 var count uint64
 var f *os.File
 var ft *os.File
@@ -32,6 +37,7 @@ var cpuPercent []float64
 var measureT = false
 var startTime time.Time
 var intervalTime time.Time
+*/
 
 type SCTandLConf struct {
 	sct        []byte
@@ -51,24 +57,6 @@ type CAServer struct {
 
 func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCARequest) (*pf.SubmitNewDelegCAResponse, error) {
 	res := &pf.SubmitNewDelegCAResponse{}
-
-	if startTime.IsZero() {
-		startTime = time.Now()
-		intervalTime = time.Now()
-		f, _ = os.Create("CAStats" + ".csv")
-		cpuPercent, _ = cpu.Percent(0, true)
-
-		if measureT {
-			ft, _ = os.Create("CATimeStats" + ".csv")
-		}
-	}
-
-	var measureTimes time.Time
-	var elapsedTimes int64
-	if measureT {
-		elapsedTimes = 0
-		measureTimes = time.Now()
-	}
 
 	log.Printf("Received NewDeleg from Child with RID %s", rhine.EncodeBase64(in.Rid))
 
@@ -98,10 +86,6 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 	log.Println("Initial verification steps passed, procceding with DSP")
 
 	// Now we run DSProofRet to get dsps
-
-	if measureT {
-		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
-	}
 
 	// Make dspRequest
 	dspRequest := &agg.DSProofRetRequest{Childzone: psr.ChildZone, Parentzone: psr.ParentZone}
@@ -163,20 +147,9 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 
 	log.Println("All DSProofs fine")
 
-	if measureT {
-		measureTimes = time.Now()
-	}
-
 	// Create PreRC and NDS
 	preRC := s.Ca.CreatePoisonedCert(psr)
 
-	/*
-		nds, errnds := s.Ca.CreateNDS(psr, preRC)
-		if errnds != nil {
-			return res, errnds
-		}
-		log.Printf("Constructed NDS looks like this: %+v", nds)
-	*/
 	prl, errprl := s.Ca.CreatePRL(psr, preRC)
 	if errprl != nil {
 		return res, errprl
@@ -187,10 +160,6 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 	prlbytes, perr := prl.PrlToBytes()
 	if perr != nil {
 		return res, perr
-	}
-
-	if measureT {
-		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
 	}
 
 	// Wait for DSProof goroutines
@@ -236,10 +205,6 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		return res, err
 	}
 
-	if measureT {
-		measureTimes = time.Now()
-	}
-
 	// Collect the Atts from the routines
 	for i := range psr.GetLogs() {
 		l := <-LogAttReturns
@@ -254,24 +219,8 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 
 	log.Println("ATTS list verified")
 
-	if measureT {
-		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
-	}
-
-	if measureT {
-		measureTimes = time.Now()
-	}
-
 	// Communicate back to the log
 	// Connection already established :
-
-	if measureT {
-		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
-	}
-
-	if measureT {
-		measureTimes = time.Now()
-	}
 
 	nds, errnds := s.Ca.CreateNDS(psr, preRC)
 	if errnds != nil {
@@ -336,27 +285,6 @@ func (s *CAServer) SubmitNewDelegCA(ctx context.Context, in *pf.SubmitNewDelegCA
 		Rid:    in.Rid,
 	}
 
-	if measureT {
-		elapsedTimes = elapsedTimes + time.Since(measureTimes).Microseconds()
-		ft.WriteString(fmt.Sprintf("%d\n", elapsedTimes))
-	}
-
-	count_my := atomic.AddUint64(&count, 1)
-	if time.Since(intervalTime) > time.Second*5 {
-		elapsed := time.Since(startTime)
-		log.Println("INFO", count_my, elapsed)
-		//intervalTime = time.Now()
-		elapsed_int := time.Since(intervalTime)
-
-		// Calc CPU util
-		cpuNew, _ := cpu.Percent(0, true)
-		cpuPercent = cpuNew
-		f.WriteString(fmt.Sprintf("%f,%d,%f,%f\n", elapsed.Seconds(), count_my, float64(count_my)/elapsed_int.Seconds(), cpuPercent))
-		f.Sync()
-		intervalTime = time.Now()
-		atomic.StoreUint64(&count, 0)
-	}
-	log.Println("NUMBER ISSUED ", count_my)
 	return res, nil
 
 }

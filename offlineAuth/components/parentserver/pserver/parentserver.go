@@ -2,18 +2,18 @@ package pserver
 
 import (
 	"context"
-	"fmt"
+	//"fmt"
 	"log"
-	"os"
-	"time"
+	//"os"
+	//"time"
 
 	_ "github.com/rhine-team/RHINE-Prototype/offlineAuth/cbor"
 	ps "github.com/rhine-team/RHINE-Prototype/offlineAuth/components/parentserver"
 	"github.com/rhine-team/RHINE-Prototype/offlineAuth/rhine"
 )
 
-var ft1 *os.File
-var measureT = false
+//var ft1 *os.File
+//var measureT = false
 
 type PServer struct {
 	ps.UnimplementedParentServiceServer
@@ -22,15 +22,6 @@ type PServer struct {
 
 func (s *PServer) InitDelegation(ctx context.Context, in *ps.InitDelegationRequest) (*ps.InitDelegationResponse, error) {
 	res := &ps.InitDelegationResponse{}
-	var measureTimes time.Time
-	var elapsedTimes int64
-	if measureT && ft1 == nil {
-		ft1, _ = os.Create("ParentStats" + ".csv")
-	}
-	if measureT {
-		elapsedTimes = 0
-		measureTimes = time.Now()
-	}
 
 	//log.Printf("InitDelegation service called %+v\n", *in)
 
@@ -62,9 +53,5 @@ func (s *PServer) InitDelegation(ctx context.Context, in *ps.InitDelegationReque
 	//log.Printf("Delegation successfull: InitDelegationResponse sent for RID : %+v ", in.Rid)
 	log.Printf("Delegation successfull: InitDelegationResponse sent for RID : %s\n", rhine.EncodeBase64(in.Rid))
 
-	if measureT {
-		elapsedTimes = time.Since(measureTimes).Microseconds()
-		ft1.WriteString(fmt.Sprintf("%d\n", elapsedTimes))
-	}
 	return res, nil
 }
