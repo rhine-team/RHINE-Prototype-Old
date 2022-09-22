@@ -3,7 +3,7 @@
 This directory contains a prototype implementation of the RHINE offline autentication protocol
 
 ## Architecture
-![RHINEArchitecture](docs/RHINE_offlineAuth_Architecture.png?raw=true "RHINE_Architecture")
+![RHINEArchitecture](docs/RHINE_offlineAuth_ArchitectureNew.png?raw=true "RHINE_Architecture")
 
 The RHINE offline authentication protocol makes use of three components: Loggers, a Certificate Authority and a Zone Manager. The latter provides functionality to zones to request a delegation as well as for parents to run a parent server allowing its children to be delegated to. 
 Loggers keep track of RHINE's Delegation Transperancy, serve data related to it for use during delagation or name server setup and take part in the secure delegation setup themselves. 
