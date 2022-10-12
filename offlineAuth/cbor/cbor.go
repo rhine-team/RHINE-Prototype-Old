@@ -1,8 +1,8 @@
 package cbor
 
 import (
-	"log"
-	"reflect"
+	//"log"
+	//"reflect"
 
 	"github.com/fxamacker/cbor/v2"
 	"google.golang.org/grpc/encoding"
